@@ -32,10 +32,12 @@ module Yamatanooroti::WindowsDefinition
   typealias 'LPWORD', 'void*'
   typealias 'ULONG_PTR', 'ULONG*'
   typealias 'LONG', 'int'
+  typealias 'LPTSTR', 'void*'
+  typealias 'HLOCAL', 'HANDLE'
 
-  Fiddle::SIZEOF_HANDLE = Fiddle::SIZEOF_LONG
-  Fiddle::SIZEOF_HPCON = Fiddle::SIZEOF_LONG
-  Fiddle::SIZEOF_HRESULT = Fiddle::SIZEOF_LONG
+  Fiddle::SIZEOF_HANDLE = Fiddle::SIZEOF_INTPTR_T
+  Fiddle::SIZEOF_HPCON = Fiddle::SIZEOF_INTPTR_T
+  Fiddle::SIZEOF_HRESULT = Fiddle::SIZEOF_INTPTR_T
   Fiddle::SIZEOF_DWORD = Fiddle::SIZEOF_LONG
   Fiddle::SIZEOF_WORD = Fiddle::SIZEOF_SHORT
 
@@ -185,6 +187,8 @@ module Yamatanooroti::WindowsDefinition
   extern 'UINT MapVirtualKeyW(UINT, UINT);', :stdcall
   # BOOL ReadConsoleOutputW(HANDLE hConsoleOutput, PCHAR_INFO lpBuffer, COORD dwBufferSize, COORD dwBufferCoord, PSMALL_RECT lpReadRegion);
   extern 'BOOL ReadConsoleOutputW(HANDLE, PCHAR_INFO, COORD, COORD, PSMALL_RECT);', :stdcall
+  # BOOL WINAPI ReadConsoleOutputCharacterW(HANDLE hConsoleOutput, LPTSTR lpCharacter, DWORD nLength, COORD dwReadCoord, LPDWORD lpNumberOfCharsRead);
+  extern 'BOOL ReadConsoleOutputCharacterW(HANDLE, LPTSTR, DWORD, COORD, LPDWORD);', :stdcall
   # BOOL WINAPI GetConsoleScreenBufferInfo(HANDLE hConsoleOutput, PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
   extern 'BOOL GetConsoleScreenBufferInfo(HANDLE, PCONSOLE_SCREEN_BUFFER_INFO);', :stdcall
   # BOOL WINAPI GetCurrentConsoleFontEx(HANDLE hConsoleOutput, BOOL bMaximumWindow, PCONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
@@ -216,8 +220,6 @@ module Yamatanooroti::WindowsDefinition
   #BOOL GetStringTypeW(DWORD dwInfoType, LPCWCH lpSrcStr, int cchSrc, LPWORD lpCharType);
   extern 'BOOL GetStringTypeW(DWORD, LPCWCH, int, LPWORD);', :stdcall
 
-  typealias 'LPTSTR', 'void*'
-  typealias 'HLOCAL', 'HANDLE'
   extern 'DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPTSTR lpBuffer, DWORD nSize, va_list *Arguments);', :stdcall
   extern 'HLOCAL LocalFree(HLOCAL hMem);', :stdcall
   extern 'DWORD GetLastError();', :stdcall
@@ -359,7 +361,7 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   private def launch(command)
-    command = %Q{cmd.exe /q /c "#{command}"}
+    command = %Q{cmd.exe /q /s /c "#{command}"\x00}
     converted_command = mb2wc(command)
     @pi = DL::PROCESS_INFORMATION.malloc
     (@pi.to_ptr + 0)[0, DL::PROCESS_INFORMATION.size] = "\x00" * DL::PROCESS_INFORMATION.size
@@ -487,32 +489,18 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   private def retrieve_screen
-    char_info_matrix = Fiddle::Pointer.to_ptr("\x00" * (DL::CHAR_INFO.size * (@height * @width)))
-    region = DL::SMALL_RECT.malloc
-    region.Left = 0
-    region.Top = 0
-    region.Right = @width - 1
-    region.Bottom = @height - 1
-    r = DL.ReadConsoleOutputW(@output_handle, char_info_matrix, @height * 65536 + @width, 0, region)
-    error_message(r, "ReadConsoleOutputW")
-    screen = []
-    prev_c = nil
-    @height.times do |y|
-      line = +''
-      @width.times do |x|
-        index = @width * y + x
-        char_info = DL::CHAR_INFO.new(char_info_matrix + DL::CHAR_INFO.size * index)
-        mb = [char_info.UnicodeChar].pack('U')
-        if prev_c == mb and full_width?(mb)
-          prev_c = nil
-        else
-          line << mb
-          prev_c = mb
-        end
+    buffer_chars = @width * 8
+    buffer = Fiddle::Pointer.malloc(Fiddle::SIZEOF_SHORT * buffer_chars, DL::FREE)
+    n = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
+    return (0...@height).map do |y|
+      r = DL.ReadConsoleOutputCharacterW(@output_handle, buffer, @width, y << 16, n)
+      error_message(r, "ReadConsoleOutputW")
+      if r != 0
+        wc2mb(buffer[0, n.to_str.unpack1("L") * 2]).gsub(/ *$/, "")
+      else
+        ""
       end
-      screen << line.gsub(/ *$/, '')
     end
-    screen
   end
 
   def result
