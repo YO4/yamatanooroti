@@ -2,6 +2,14 @@
 
 loop {
   print 'prompt> '
-  result = gets
-  puts "=> #{eval(result).inspect}"
+  begin
+    result = gets.force_encoding(Encoding.find("locale"))
+    puts "=> #{eval(result).inspect}"
+  rescue SyntaxError => e
+    e.message << ", result:#{result.inspect}"
+    raise
+  rescue Encoding::InvalidByteSequenceError
+    puts Encoding.find("locale").name
+    raise
+  end
 }

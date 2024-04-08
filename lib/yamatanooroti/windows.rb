@@ -447,11 +447,11 @@ module Yamatanooroti::WindowsTestCaseModule
 
   private def launch(command)
     #command = %Q{cmd.exe /q /c "#{command}"}
-    in_child do
-      pid = spawn(command, {in: ["conin$", File::RDWR | File::BINARY], out: ["conout$", File::RDWR | File::BINARY], err: STDERR})
-      @pi = Process.detach(pid)
+    pid = in_child do
+      spawn(command, {in: ["conin$", File::RDWR | File::BINARY], out: ["conout$", File::RDWR | File::BINARY], err: STDERR})
     end
     sleep @wait
+    pid
   end
 
   private def error_message(r, method_name)
@@ -507,6 +507,7 @@ module Yamatanooroti::WindowsTestCaseModule
         r = DL.GetNumberOfConsoleInputEvents(conin, n)
         error_message(r, 'GetNumberOfConsoleInputEvents')
         break if n.to_str.unpack1("L") == 0
+        break if Process.wait(@pid, Process::WNOHANG)
       end
     end
   end
@@ -610,7 +611,7 @@ module Yamatanooroti::WindowsTestCaseModule
     @wait = wait * (ENV['YAMATANOOROTI_WAIT_RATIO']&.to_f || 1.0)
     @result = nil
     setup_console(height, width)
-    launch(command.map{ |c| quote_command_arg(c) }.join(' '))
+    @pid = launch(command.map{ |c| quote_command_arg(c) }.join(' '))
     case startup_message
     when String
       check_startup_message = ->(message) {
@@ -625,6 +626,7 @@ module Yamatanooroti::WindowsTestCaseModule
       loop do
         screen = retrieve_screen.join("\n").sub(/\n*\z/, "\n")
         break if check_startup_message.(screen)
+        break if Process.wait(@pid, Process::WNOHANG)
         sleep @wait
       end
     end
