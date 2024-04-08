@@ -454,6 +454,20 @@ module Yamatanooroti::WindowsTestCaseModule
     pid
   end
 
+  private def setup_cp(cp)
+    @codepage_success_p = in_child do
+      if cp
+  #      `mode con cp select=#{Integer(cp)} > NUL`
+        `chcp #{Integer(cp)} > NUL`
+        $?.success?
+      end
+    end
+  end
+
+  private def codepage_success?
+    @codepage_success_p
+  end
+
   private def error_message(r, method_name)
     return if not r.zero?
     err = DL.GetLastError
@@ -606,11 +620,16 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   def start_terminal(height, width, command, wait: 1, startup_message: nil)
+    start_terminal_with_cp(height, width, command, wait: wait, startup_message: startup_message)
+  end
+
+  def start_terminal_with_cp(height, width, command, wait: 1, startup_message: nil, codepage: nil)
     @height = height
     @width = width
     @wait = wait * (ENV['YAMATANOOROTI_WAIT_RATIO']&.to_f || 1.0)
     @result = nil
     setup_console(height, width)
+    setup_cp(codepage)
     @pid = launch(command.map{ |c| quote_command_arg(c) }.join(' '))
     case startup_message
     when String

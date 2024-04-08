@@ -34,14 +34,27 @@ class Yamatanooroti::TestMultiplatform < Yamatanooroti::TestCase
       prompt>
     EOC
   end
+end
+
+class Yamatanooroti::TestMultiplatformMultiByte < Yamatanooroti::TestCase
+  def setup
+    if Yamatanooroti.win?
+      start_terminal_with_cp(5, 30, ['ruby', 'bin/simple_repl'], codepage: 932)
+    else
+      start_terminal(5, 30, ['ruby', 'bin/simple_repl'])
+    end
+    sleep 0.5
+  end
 
   def test_fullwidth
+    omit "multibyte char not supported by env" if Yamatanooroti.win? and !codepage_success?
     write(":あ\n")
     close
     assert_equal(['prompt> :あ', '=> :あ', 'prompt>', '', ''], result)
   end
 
   def test_two_fullwidth
+    omit "multibyte char not supported by env" if Yamatanooroti.win? and !codepage_success?
     write(":あい\n")
     close
     assert_equal(['prompt> :あい', '=> :あい', 'prompt>', '', ''], result)
