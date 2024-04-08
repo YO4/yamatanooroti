@@ -5,7 +5,7 @@ require 'io/console'
 
 module Yamatanooroti::VTermTestCaseModule
   def start_terminal(height, width, command, wait: 0.1, startup_message: nil)
-    @wait = wait
+    @wait = wait * (ENV['YAMATANOOROTI_WAIT_RATIO']&.to_f || 1.0)
     @result = nil
 
     @pty_output, @pty_input, @pid = PTY.spawn('bash', '-c', %[stty rows #{height.to_s} cols #{width.to_s}; "$@"], '--', *command)

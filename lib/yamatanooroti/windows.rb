@@ -185,6 +185,8 @@ module Yamatanooroti::WindowsDefinition
   extern 'SHORT VkKeyScanW(WCHAR);', :stdcall
   # UINT MapVirtualKeyW(UINT uCode, UINT uMapType);
   extern 'UINT MapVirtualKeyW(UINT, UINT);', :stdcall
+  # BOOL GetNumberOfConsoleInputEvents(HANDLE  hConsoleInput, LPDWORD lpcNumberOfEvents);
+  extern 'BOOL GetNumberOfConsoleInputEvents(HANDLE  hConsoleInput, LPDWORD lpcNumberOfEvents);', :stdcall
   # BOOL ReadConsoleOutputW(HANDLE hConsoleOutput, PCHAR_INFO lpBuffer, COORD dwBufferSize, COORD dwBufferCoord, PSMALL_RECT lpReadRegion);
   extern 'BOOL ReadConsoleOutputW(HANDLE, PCHAR_INFO, COORD, COORD, PSMALL_RECT);', :stdcall
   # BOOL WINAPI ReadConsoleOutputCharacterW(HANDLE hConsoleOutput, LPTSTR lpCharacter, DWORD nLength, COORD dwReadCoord, LPDWORD lpNumberOfCharsRead);
@@ -373,7 +375,6 @@ module Yamatanooroti::WindowsTestCaseModule
       @startup_info_ex, @pi
     )
     error_message(r, 'CreateProcessW')
-    sleep @wait
   rescue => e
     pp e
   end
@@ -403,7 +404,6 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   def write(str)
-    sleep @wait
     records = Fiddle::Pointer.malloc(DL::INPUT_RECORD_WITH_KEY_EVENT.size * str.size * 2, DL::FREE)
     str.chars.each_with_index do |c, i|
       c = "\r" if c == "\n"
@@ -424,6 +424,13 @@ module Yamatanooroti::WindowsTestCaseModule
     written_size = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
     r = DL.WriteConsoleInputW(DL.GetStdHandle(DL::STD_INPUT_HANDLE), records, str.size * 2, written_size)
     error_message(r, 'WriteConsoleInput')
+    n = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
+    loop do
+      sleep 0.02
+      r = DL.GetNumberOfConsoleInputEvents(DL.GetStdHandle(DL::STD_INPUT_HANDLE), n)
+      error_message(r, 'GetNumberOfConsoleInputEvents')
+      break if n.to_str.unpack1("L") == 0
+    end
   end
 
   private def set_input_record(r, c, key_down, control_key_state)
@@ -519,7 +526,7 @@ module Yamatanooroti::WindowsTestCaseModule
   def start_terminal(height, width, command, wait: 1, startup_message: nil)
     @height = height
     @width = width
-    @wait = wait
+    @wait = wait * (ENV['YAMATANOOROTI_WAIT_RATIO']&.to_f || 1.0)
     @result = nil
     setup_console(height, width)
     launch(command.map{ |c| quote_command_arg(c) }.join(' '))
