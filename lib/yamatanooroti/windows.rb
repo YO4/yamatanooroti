@@ -148,6 +148,11 @@ module Yamatanooroti::WindowsDefinition
   STD_INPUT_HANDLE = -10
   STD_OUTPUT_HANDLE = -11
   STD_ERROR_HANDLE = -12
+  STARTF_USESHOWWINDOW = 1
+  CREATE_NEW_CONSOLE = 0x10
+  CREATE_NEW_PROCESS_GROUP = 0x200
+  CREATE_UNICODE_ENVIRONMENT = 0x400
+  CREATE_NO_WINDOW = 0x08000000
   ATTACH_PARENT_PROCESS = -1
   KEY_EVENT = 0x0001
   CT_CTYPE3 = 0x04
@@ -222,9 +227,20 @@ module Yamatanooroti::WindowsDefinition
   #BOOL GetStringTypeW(DWORD dwInfoType, LPCWCH lpSrcStr, int cchSrc, LPWORD lpCharType);
   extern 'BOOL GetStringTypeW(DWORD, LPCWCH, int, LPWORD);', :stdcall
 
+  # HANDLE CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
+  extern 'HANDLE CreateFileA(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);', :stdcall
+  GENERIC_READ = 0x80000000
+  GENERIC_WRITE = 0x40000000
+  FILE_SHARE_READ = 0x00000001
+  FILE_SHARE_WRITE = 0x00000002
+  OPEN_EXISTING = 3
+  INVALID_HANDLE_VALUE = 0xffffffff
+
   extern 'DWORD FormatMessage(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPTSTR lpBuffer, DWORD nSize, va_list *Arguments);', :stdcall
   extern 'HLOCAL LocalFree(HLOCAL hMem);', :stdcall
-  extern 'DWORD GetLastError();', :stdcall
+  def self.GetLastError
+    Fiddle.win32_last_error
+  end
   FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x00000100
   FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000
   LANG_NEUTRAL = 0x00
@@ -237,18 +253,91 @@ end
 module Yamatanooroti::WindowsTestCaseModule
   DL = Yamatanooroti::WindowsDefinition
 
+  private def in_child
+    conin = conout = nil
+    r = DL.FreeConsole()
+    error_message(r, "FreeConsole")
+    r = DL.AttachConsole(@console_process_info.dwProcessId)
+    # this can be fail while new process is starting
+    # error_message(r, 'AttachConsole')
+    return nil if r.zero?
+    conin = DL.CreateFileA(
+      "conin$",
+      DL::GENERIC_READ | DL::GENERIC_WRITE,
+      DL::FILE_SHARE_READ | DL::FILE_SHARE_WRITE,
+      nil,
+      DL::OPEN_EXISTING,
+      0,
+      0
+    )
+    error_message(conin.to_i == DL::INVALID_HANDLE_VALUE ? 0 : 1, "conin$")
+    return nil if conin.to_i == DL::INVALID_HANDLE_VALUE
+    conout = DL.CreateFileA(
+      "conout$",
+      DL::GENERIC_READ | DL::GENERIC_WRITE,
+      DL::FILE_SHARE_READ | DL::FILE_SHARE_WRITE,
+      nil,
+      DL::OPEN_EXISTING,
+      0,
+      0
+    )
+    error_message(conout.to_i == DL::INVALID_HANDLE_VALUE ? 0 : 1, "conout$")
+    return nil if conout.to_i == DL::INVALID_HANDLE_VALUE
+    yield(conin.to_i, conout.to_i)
+  ensure
+    if conin != nil && conin.to_i != DL::INVALID_HANDLE_VALUE
+      r = DL.CloseHandle(conin)
+      error_message(r, "CloseHandle")
+    end
+    if conout != nil && conout.to_i != DL::INVALID_HANDLE_VALUE
+      r = DL.CloseHandle(conout)
+      error_message(r, "CloseHandle")
+    end
+    r = DL.FreeConsole()
+    error_message(r, "FreeConsole")
+    r = DL.AttachConsole(DL::ATTACH_PARENT_PROCESS)
+    error_message(r, 'AttachConsole')
+  end
+
   private def setup_console(height, width)
+    command = %q[ruby.exe --disable=gems -e sleep"] # 'DO NOTHING JUST STAY THERE' CONSOLE KEEPING PROCESS
+    converted_command = mb2wc("#{command}\x00")
+    @console_process_info = DL::PROCESS_INFORMATION.malloc
+    @console_process_info.to_ptr[0, DL::PROCESS_INFORMATION.size] = "\x00".b * DL::PROCESS_INFORMATION.size
+    startup_info = DL::STARTUPINFOW.malloc
+    (startup_info.to_ptr + 0)[0, DL::STARTUPINFOW.size] = "\x00".b * DL::STARTUPINFOW.size
+    startup_info.cb = DL::STARTUPINFOW.size
+    if not ENV['YAMATANOOROTI_SHOW_WINDOW']
+      startup_info.dwFlags = DL::STARTF_USESHOWWINDOW
+      startup_info.wShowWindow = DL::SW_HIDE
+    end
 
-    r = DL.FreeConsole
-    error_message(r, 'FreeConsole')
-    r = DL.AllocConsole
-    error_message(r, 'AllocConsole')
-    @output_handle = DL.GetStdHandle(DL::STD_OUTPUT_HANDLE)
+    r = DL.CreateProcessW(
+      Fiddle::NULL, converted_command,
+      Fiddle::NULL, Fiddle::NULL,
+      0,
+      DL::CREATE_NEW_CONSOLE | DL::CREATE_UNICODE_ENVIRONMENT,
+      Fiddle::NULL, Fiddle::NULL,
+      startup_info, @console_process_info
+    )
+    error_message(r, 'CreateProcessW')
 
+    # wait for console startup complete
+    8.times do |n|
+      break if in_child { true }
+      sleep 0.02 * 2**n
+    end
+
+    in_child do |conin, conout|
+      change_console_size(conout, height, width)
+    end
+  end
+
+  def change_console_size(handle, height, width)
     font = DL::CONSOLE_FONT_INFOEX.malloc
     font.cbSize = DL::CONSOLE_FONT_INFOEX.size
 
-    r = DL.GetCurrentConsoleFontEx(@output_handle, 0, font)
+    r = DL.GetCurrentConsoleFontEx(handle, 0, font)
     error_message(r, 'GetCurrentConsoleFontEx')
     fontsize = (font.dwFontSize & 0xffff0000) / 65536
     fontwidth = font.dwFontSize & 0xffff
@@ -256,7 +345,7 @@ module Yamatanooroti::WindowsTestCaseModule
     newwidth = fontwidth
 
     csbi = DL::CONSOLE_SCREEN_BUFFER_INFO.malloc
-    r = DL.GetConsoleScreenBufferInfo(@output_handle, csbi)
+    r = DL.GetConsoleScreenBufferInfo(handle, csbi)
     error_message(r, 'GetConsoleScreenBufferInfo')
 
     if (width < (csbi.Right - csbi.Left + 1) / 4)
@@ -269,7 +358,7 @@ module Yamatanooroti::WindowsTestCaseModule
     end
 
     font.dwFontSize = newsize * 65536 + newwidth
-    r = DL.SetCurrentConsoleFontEx(@output_handle, 0, font)
+    r = DL.SetCurrentConsoleFontEx(handle, 0, font)
     error_message(r, 'SetCurrentConsoleFontEx')
 
     rect = DL::SMALL_RECT.malloc
@@ -277,27 +366,21 @@ module Yamatanooroti::WindowsTestCaseModule
     rect.Top = 0
     rect.Right = width - 1
     rect.Bottom = height - 1
-    r = DL.SetConsoleWindowInfo(@output_handle, 1, rect)
+    r = DL.SetConsoleWindowInfo(handle, 1, rect)
     error_message(r, 'SetConsoleWindowInfo')
 
-#    size = DL.GetSystemMetrics(DL::SM_CYMIN) * 65536 + DL.GetSystemMetrics(DL::SM_CXMIN)
-#    r = DL.SetConsoleScreenBufferSize(@output_handle, size)
-#    error_message(r, 'SetConsoleScreenBufferSize')
-
     csbi = DL::CONSOLE_SCREEN_BUFFER_INFO.malloc
-    r = DL.GetConsoleScreenBufferInfo(@output_handle, csbi)
+    r = DL.GetConsoleScreenBufferInfo(handle, csbi)
     error_message(r, 'GetConsoleScreenBufferInfo')
 
     size = height * 65536 + width
-    r = DL.SetConsoleScreenBufferSize(@output_handle, size)
+    r = DL.SetConsoleScreenBufferSize(handle, size)
     error_message(r, "SetConsoleScreenBufferSize " \
-      "(#{width} #{height}) " \
-      "(#{csbi.Right - csbi.Left + 1} #{csbi.Bottom - csbi.Top + 1}) " \
-      "(#{csbi.dwSize & 65535} #{csbi.dwSize / 65536}) " \
-      "(#{csbi.Left} #{csbi.Top}) " \
-      "(#{csbi.Right} #{csbi.Bottom})")
-    r = DL.ShowWindow(DL.GetConsoleWindow(), DL::SW_HIDE)
-    error_message(r, 'ShowWindow')
+      "(#{height} #{width}) " \
+      "(#{csbi.Bottom - csbi.Top + 1} #{csbi.Right - csbi.Left + 1}) " \
+      "(#{csbi.dwSize / 65536} #{csbi.dwSize & 65535}) " \
+      "(#{csbi.Top} #{csbi.Left}) " \
+      "(#{csbi.Bottom} #{csbi.Right})")
   end
 
   private def mb2wc(str)
@@ -363,20 +446,12 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   private def launch(command)
-    command = %Q{cmd.exe /q /s /c "#{command}"\x00}
-    converted_command = mb2wc(command)
-    @pi = DL::PROCESS_INFORMATION.malloc
-    (@pi.to_ptr + 0)[0, DL::PROCESS_INFORMATION.size] = "\x00" * DL::PROCESS_INFORMATION.size
-    @startup_info_ex = DL::STARTUPINFOW.malloc
-    (@startup_info_ex.to_ptr + 0)[0, DL::STARTUPINFOW.size] = "\x00" * DL::STARTUPINFOW.size
-    r = DL.CreateProcessW(
-      Fiddle::NULL, converted_command,
-      Fiddle::NULL, Fiddle::NULL, 0, 0, Fiddle::NULL, Fiddle::NULL,
-      @startup_info_ex, @pi
-    )
-    error_message(r, 'CreateProcessW')
-  rescue => e
-    pp e
+    #command = %Q{cmd.exe /q /c "#{command}"}
+    in_child do
+      pid = spawn(command, {in: ["conin$", File::RDWR | File::BINARY], out: ["conout$", File::RDWR | File::BINARY], err: STDERR})
+      @pi = Process.detach(pid)
+    end
+    sleep @wait
   end
 
   private def error_message(r, method_name)
@@ -392,12 +467,12 @@ module Yamatanooroti::WindowsTestCaseModule
       0,
       Fiddle::NULL
     )
-    log "ERROR(#{method_name}): #{err.to_s}: #{string.ptr.to_s}"
+    log "ERROR(#{method_name}): #{err.to_s}: #{string.ptr.to_s.force_encoding("locale")}"
     DL.LocalFree(string)
   end
 
   private def log(str)
-    puts str
+    $stderr.puts str
     open('aaa', 'a') do |fp|
       fp.puts str
     end
@@ -422,14 +497,17 @@ module Yamatanooroti::WindowsTestCaseModule
       set_input_record(r, c, false, control_key_state)
     end
     written_size = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
-    r = DL.WriteConsoleInputW(DL.GetStdHandle(DL::STD_INPUT_HANDLE), records, str.size * 2, written_size)
-    error_message(r, 'WriteConsoleInput')
-    n = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
-    loop do
-      sleep 0.02
-      r = DL.GetNumberOfConsoleInputEvents(DL.GetStdHandle(DL::STD_INPUT_HANDLE), n)
-      error_message(r, 'GetNumberOfConsoleInputEvents')
-      break if n.to_str.unpack1("L") == 0
+    in_child do |conin, conout|
+      r = DL.WriteConsoleInputW(conin, records, str.size * 2, written_size)
+      error_message(r, 'WriteConsoleInput')
+
+      n = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
+      loop do
+        sleep 0.02
+        r = DL.GetNumberOfConsoleInputEvents(conin, n)
+        error_message(r, 'GetNumberOfConsoleInputEvents')
+        break if n.to_str.unpack1("L") == 0
+      end
     end
   end
 
@@ -468,10 +546,10 @@ module Yamatanooroti::WindowsTestCaseModule
     #r = DL.TerminateThread(@pi.hThread, 0)
     #error_message(r, "TerminateThread")
     #sleep @wait
-    r = DL.FreeConsole()
+    #r = DL.FreeConsole()
     #error_message(r, "FreeConsole")
-    r = DL.AttachConsole(DL::ATTACH_PARENT_PROCESS)
-    error_message(r, 'AttachConsole')
+    #r = DL.AttachConsole(DL::ATTACH_PARENT_PROCESS)
+    #error_message(r, 'AttachConsole')
   end
 
   private def kill_process_tree(process_table, pid)
@@ -481,7 +559,7 @@ module Yamatanooroti::WindowsTestCaseModule
     h_proc = DL.OpenProcess(DL::PROCESS_ALL_ACCESS, 0, pid)
     if (h_proc)
       r = DL.TerminateProcess(h_proc, 0)
-      error_message(r, "TerminateProcess")
+      # error_message(r, "TerminateProcess")
       r = DL.CloseHandle(h_proc)
       error_message(r, "CloseHandle")
     end
@@ -499,15 +577,18 @@ module Yamatanooroti::WindowsTestCaseModule
     buffer_chars = @width * 8
     buffer = Fiddle::Pointer.malloc(Fiddle::SIZEOF_SHORT * buffer_chars, DL::FREE)
     n = Fiddle::Pointer.malloc(Fiddle::SIZEOF_DWORD, DL::FREE)
-    return (0...@height).map do |y|
-      r = DL.ReadConsoleOutputCharacterW(@output_handle, buffer, @width, y << 16, n)
-      error_message(r, "ReadConsoleOutputW")
-      if r != 0
-        wc2mb(buffer[0, n.to_str.unpack1("L") * 2]).gsub(/ *$/, "")
-      else
-        ""
+    lines = in_child do |conin, conout|
+      (0...@height).map do |y|
+        r = DL.ReadConsoleOutputCharacterW(conout, buffer, @width, y << 16, n)
+        error_message(r, "ReadConsoleOutputCharacterW")
+        if r != 0
+          wc2mb(buffer[0, n.to_str.unpack1("L") * 2]).gsub(/ *$/, "")
+        else
+          ""
+        end
       end
     end
+    lines
   end
 
   def result
