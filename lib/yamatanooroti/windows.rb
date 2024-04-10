@@ -485,6 +485,12 @@ module Yamatanooroti::WindowsTestCaseModule
     process_table[DL.GetCurrentProcessId].each do |child_pid|
       kill_process_tree(process_table, child_pid)
     end
+    r = DL.CloseHandle(h_snap)
+    error_message(r, "CloseHandle(h_snap)")
+    r = DL.CloseHandle(@console_process_info.hProcess)
+    error_message(r, "CloseHandle(hProcess)")
+    r = DL.CloseHandle(@console_process_info.hThread)
+    error_message(r, "CloseHandle(hThread)")
   end
 
   private def kill_process_tree(process_table, pid)
