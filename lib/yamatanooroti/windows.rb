@@ -10,20 +10,13 @@ module Yamatanooroti::WindowsDefinition
   FREE = Fiddle::Function.new(Fiddle::RUBY_FREE, [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOID)
 
   typealias 'SHORT', 'short'
-  typealias 'HPCON', 'HANDLE'
   typealias 'HWND', 'HANDLE'
-  typealias 'HRESULT', 'HANDLE'
   typealias 'LPVOID', 'void*'
-  typealias 'SIZE_T', 'size_t'
   typealias 'LPWSTR', 'void*'
   typealias 'LPBYTE', 'void*'
   typealias 'LPCWSTR', 'void*'
-  typealias 'LPPROC_THREAD_ATTRIBUTE_LIST', 'void*'
-  typealias 'PSIZE_T', 'void*'
-  typealias 'DWORD_PTR', 'void*'
   typealias 'LPCVOID', 'void*'
   typealias 'LPDWORD', 'void*'
-  typealias 'LPOVERLAPPED', 'void*'
   typealias 'WCHAR', 'unsigned short'
   typealias 'LPCWCH', 'void*'
   typealias 'LPSTR', 'void*'
@@ -35,29 +28,20 @@ module Yamatanooroti::WindowsDefinition
   typealias 'LPTSTR', 'void*'
   typealias 'HLOCAL', 'HANDLE'
 
-  Fiddle::SIZEOF_HANDLE = Fiddle::SIZEOF_INTPTR_T
-  Fiddle::SIZEOF_HPCON = Fiddle::SIZEOF_INTPTR_T
-  Fiddle::SIZEOF_HRESULT = Fiddle::SIZEOF_INTPTR_T
   Fiddle::SIZEOF_DWORD = Fiddle::SIZEOF_LONG
   Fiddle::SIZEOF_WORD = Fiddle::SIZEOF_SHORT
 
-  COORD = struct [
-    'SHORT X',
-    'SHORT Y'
-  ]
   typealias 'COORD', 'DWORD32'
-
   SMALL_RECT = struct [
     'SHORT Left',
     'SHORT Top',
     'SHORT Right',
     'SHORT Bottom'
   ]
-  typealias 'SMALL_RECT*', 'DWORD64*'
   typealias 'PSMALL_RECT', 'SMALL_RECT*'
 
   CONSOLE_SCREEN_BUFFER_INFO = struct [
-    'COORD dwSize',
+    'SHORT dwSize_X', 'SHORT dwSize_Y', # 'COORD dwSize',
     'COORD dwCursorPosition',
     'WORD wAttributes',
     'SHORT Left', 'SHORT Top', 'SHORT Right', 'SHORT Bottom', # 'SMALL_RECT srWindow',
@@ -70,7 +54,6 @@ module Yamatanooroti::WindowsDefinition
     'LPVOID lpSecurityDescriptor',
     'BOOL bInheritHandle'
   ]
-  typealias 'PSECURITY_ATTRIBUTES', 'SECURITY_ATTRIBUTES*'
   typealias 'LPSECURITY_ATTRIBUTES', 'SECURITY_ATTRIBUTES*'
 
   STARTUPINFOW = struct [
@@ -101,7 +84,6 @@ module Yamatanooroti::WindowsDefinition
     'DWORD  dwProcessId',
     'DWORD  dwThreadId'
   ]
-  typealias 'PPROCESS_INFORMATION', 'PROCESS_INFORMATION*'
   typealias 'LPPROCESS_INFORMATION', 'PROCESS_INFORMATION*'
 
   INPUT_RECORD_WITH_KEY_EVENT = struct [
@@ -114,12 +96,6 @@ module Yamatanooroti::WindowsDefinition
     ## union 'CHAR  AsciiChar',
     'DWORD dwControlKeyState'
   ]
-
-  CHAR_INFO = struct [
-    'WCHAR UnicodeChar',
-    'WORD Attributes'
-  ]
-  typealias 'PCHAR_INFO', 'CHAR_INFO*'
 
   PROCESSENTRY32W = struct [
     'DWORD dwSize',
@@ -138,16 +114,13 @@ module Yamatanooroti::WindowsDefinition
   CONSOLE_FONT_INFOEX = struct [
     'ULONG cbSize',
     'DWORD nFont',
-    'DWORD32 dwFontSize',
+    'SHORT dwFontSize_X', 'SHORT dwFontSize_Y', # 'COORD dwFontSize',
     'UINT FontFamily',
     'UINT FontWeight',
     'WCHAR FaceName[32]'
   ]
   typealias 'PCONSOLE_FONT_INFOEX', 'CONSOLE_FONT_INFOEX*'
 
-  STD_INPUT_HANDLE = -10
-  STD_OUTPUT_HANDLE = -11
-  STD_ERROR_HANDLE = -12
   STARTF_USESHOWWINDOW = 1
   CREATE_NEW_CONSOLE = 0x10
   CREATE_NEW_PROCESS_GROUP = 0x200
@@ -155,29 +128,18 @@ module Yamatanooroti::WindowsDefinition
   CREATE_NO_WINDOW = 0x08000000
   ATTACH_PARENT_PROCESS = -1
   KEY_EVENT = 0x0001
-  CT_CTYPE3 = 0x04
-  C3_HIRAGANA = 0x0020
-  C3_HALFWIDTH = 0x0040
-  C3_FULLWIDTH = 0x0080
-  C3_IDEOGRAPH = 0x0100
   TH32CS_SNAPPROCESS = 0x00000002
   PROCESS_ALL_ACCESS = 0x001FFFFF
   SW_HIDE = 0
   LEFT_ALT_PRESSED = 0x0002
 
-  # HANDLE GetStdHandle(DWORD nStdHandle);
-  extern 'HANDLE GetStdHandle(DWORD);', :stdcall
   # BOOL CloseHandle(HANDLE hObject);
   extern 'BOOL CloseHandle(HANDLE);', :stdcall
 
   # BOOL FreeConsole(void);
   extern 'BOOL FreeConsole(void);', :stdcall
-  # BOOL AllocConsole(void);
-  extern 'BOOL AllocConsole(void);', :stdcall
   # BOOL AttachConsole(DWORD dwProcessId);
   extern 'BOOL AttachConsole(DWORD);', :stdcall
-  # BOOL ShowWindow(HWND hWnd, int nCmdShow);
-  extern 'BOOL ShowWindow(HWND hWnd,int nCmdShow);', :stdcall
   # HWND WINAPI GetConsoleWindow(void);
   extern 'HWND GetConsoleWindow(void);', :stdcall
   # BOOL WINAPI SetConsoleScreenBufferSize(HANDLE hConsoleOutput, COORD dwSize);
@@ -192,8 +154,6 @@ module Yamatanooroti::WindowsDefinition
   extern 'UINT MapVirtualKeyW(UINT, UINT);', :stdcall
   # BOOL GetNumberOfConsoleInputEvents(HANDLE  hConsoleInput, LPDWORD lpcNumberOfEvents);
   extern 'BOOL GetNumberOfConsoleInputEvents(HANDLE  hConsoleInput, LPDWORD lpcNumberOfEvents);', :stdcall
-  # BOOL ReadConsoleOutputW(HANDLE hConsoleOutput, PCHAR_INFO lpBuffer, COORD dwBufferSize, COORD dwBufferCoord, PSMALL_RECT lpReadRegion);
-  extern 'BOOL ReadConsoleOutputW(HANDLE, PCHAR_INFO, COORD, COORD, PSMALL_RECT);', :stdcall
   # BOOL WINAPI ReadConsoleOutputCharacterW(HANDLE hConsoleOutput, LPTSTR lpCharacter, DWORD nLength, COORD dwReadCoord, LPDWORD lpNumberOfCharsRead);
   extern 'BOOL ReadConsoleOutputCharacterW(HANDLE, LPTSTR, DWORD, COORD, LPDWORD);', :stdcall
   # BOOL WINAPI GetConsoleScreenBufferInfo(HANDLE hConsoleOutput, PCONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo);
@@ -224,8 +184,6 @@ module Yamatanooroti::WindowsDefinition
   extern 'int MultiByteToWideChar(UINT, DWORD, LPCSTR, int, LPWSTR, int);', :stdcall
   # int WideCharToMultiByte(UINT CodePage, DWORD dwFlags, _In_NLS_string_(cchWideChar)LPCWCH lpWideCharStr, int cchWideChar, LPSTR lpMultiByteStr, int cbMultiByte, LPCCH lpDefaultChar, LPBOOL lpUsedDefaultChar);
   extern 'int WideCharToMultiByte(UINT, DWORD, LPCWCH, int, LPSTR, int, LPCCH, LPBOOL);', :stdcall
-  #BOOL GetStringTypeW(DWORD dwInfoType, LPCWCH lpSrcStr, int cchSrc, LPWORD lpCharType);
-  extern 'BOOL GetStringTypeW(DWORD, LPCWCH, int, LPWORD);', :stdcall
 
   # HANDLE CreateFileA(LPCSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile);
   extern 'HANDLE CreateFileA(LPCSTR, DWORD, DWORD, LPSECURITY_ATTRIBUTES, DWORD, DWORD, HANDLE);', :stdcall
@@ -243,11 +201,6 @@ module Yamatanooroti::WindowsDefinition
   end
   FORMAT_MESSAGE_ALLOCATE_BUFFER = 0x00000100
   FORMAT_MESSAGE_FROM_SYSTEM = 0x00001000
-  LANG_NEUTRAL = 0x00
-  SUBLANG_DEFAULT = 0x01
-  extern 'int GetSystemMetrics(int);', :stdcall
-  SM_CXMIN = 28
-  SM_CYMIN = 29
 end
 
 module Yamatanooroti::WindowsTestCaseModule
@@ -339,10 +292,8 @@ module Yamatanooroti::WindowsTestCaseModule
 
     r = DL.GetCurrentConsoleFontEx(handle, 0, font)
     error_message(r, 'GetCurrentConsoleFontEx')
-    fontsize = (font.dwFontSize & 0xffff0000) / 65536
-    fontwidth = font.dwFontSize & 0xffff
-    newsize = fontsize
-    newwidth = fontwidth
+    newsize = fontsize = font.dwFontSize_Y
+    newwidth = fontwidth = font.dwFontSize_X
 
     csbi = DL::CONSOLE_SCREEN_BUFFER_INFO.malloc
     r = DL.GetConsoleScreenBufferInfo(handle, csbi)
@@ -357,7 +308,8 @@ module Yamatanooroti::WindowsTestCaseModule
       newwidth = fontwidth * newsize / fontsize
     end
 
-    font.dwFontSize = newsize * 65536 + newwidth
+    font.dwFontSize_Y = newsize
+    font.dwFontSize_X = newwidth
     r = DL.SetCurrentConsoleFontEx(handle, 0, font)
     error_message(r, 'SetCurrentConsoleFontEx')
 
@@ -378,7 +330,7 @@ module Yamatanooroti::WindowsTestCaseModule
     error_message(r, "SetConsoleScreenBufferSize " \
       "(#{height} #{width}) " \
       "(#{csbi.Bottom - csbi.Top + 1} #{csbi.Right - csbi.Left + 1}) " \
-      "(#{csbi.dwSize / 65536} #{csbi.dwSize & 65535}) " \
+      "(#{csbi.dwSize_Y} #{csbi.dwSize_X}) " \
       "(#{csbi.Top} #{csbi.Left}) " \
       "(#{csbi.Bottom} #{csbi.Right})")
   end
@@ -395,25 +347,6 @@ module Yamatanooroti::WindowsTestCaseModule
     converted_str = "\x00" * size
     DL.WideCharToMultiByte(65001, 0, str, str.bytesize / 2, converted_str, converted_str.bytesize, 0, 0)
     converted_str
-  end
-
-  private def full_width?(c)
-    return false if c.nil? or c.empty?
-    wc = mb2wc(c)
-    type = Fiddle::Pointer.malloc(Fiddle::SIZEOF_WORD, DL::FREE)
-    DL.GetStringTypeW(DL::CT_CTYPE3, wc, wc.bytesize, type)
-    char_type = type[0, Fiddle::SIZEOF_WORD].unpack('S').first
-    if char_type.anybits?(DL::C3_FULLWIDTH)
-      true
-    elsif char_type.anybits?(DL::C3_HALFWIDTH)
-      false
-    elsif char_type.anybits?(DL::C3_HIRAGANA)
-      true
-    elsif char_type.anybits?(DL::C3_IDEOGRAPH)
-      true
-    else
-      false
-    end
   end
 
   private def quote_command_arg(arg)
@@ -446,7 +379,6 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   private def launch(command)
-    #command = %Q{cmd.exe /q /c "#{command}"}
     pid = in_child do
       spawn(command, {in: ["conin$", File::RDWR | File::BINARY], out: ["conout$", File::RDWR | File::BINARY], err: STDERR})
     end
@@ -457,7 +389,6 @@ module Yamatanooroti::WindowsTestCaseModule
   private def setup_cp(cp)
     @codepage_success_p = in_child do
       if cp
-  #      `mode con cp select=#{Integer(cp)} > NUL`
         `chcp #{Integer(cp)} > NUL`
         $?.success?
       end
@@ -544,13 +475,12 @@ module Yamatanooroti::WindowsTestCaseModule
   private def free_resources
     h_snap = DL.CreateToolhelp32Snapshot(DL::TH32CS_SNAPPROCESS, 0)
     pe = DL::PROCESSENTRY32W.malloc
-    (pe.to_ptr + 0)[0, DL::PROCESSENTRY32W.size] = "\x00" * DL::PROCESSENTRY32W.size
+    pe.to_ptr[0, DL::PROCESSENTRY32W.size] = "\x00" * DL::PROCESSENTRY32W.size
     pe.dwSize = DL::PROCESSENTRY32W.size
     r = DL.Process32FirstW(h_snap, pe)
     error_message(r, "Process32First")
     process_table = {}
     loop do
-      #log "a #{pe.th32ParentProcessID.inspect} -> #{pe.th32ProcessID.inspect} #{wc2mb(pe.szExeFile.pack('S260')).unpack('Z*').pack('Z*')}"
       process_table[pe.th32ParentProcessID] ||= []
       process_table[pe.th32ParentProcessID] << pe.th32ProcessID
       break if DL.Process32NextW(h_snap, pe).zero?
@@ -558,13 +488,6 @@ module Yamatanooroti::WindowsTestCaseModule
     process_table[DL.GetCurrentProcessId].each do |child_pid|
       kill_process_tree(process_table, child_pid)
     end
-    #r = DL.TerminateThread(@pi.hThread, 0)
-    #error_message(r, "TerminateThread")
-    #sleep @wait
-    #r = DL.FreeConsole()
-    #error_message(r, "FreeConsole")
-    #r = DL.AttachConsole(DL::ATTACH_PARENT_PROCESS)
-    #error_message(r, 'AttachConsole')
   end
 
   private def kill_process_tree(process_table, pid)
@@ -574,7 +497,7 @@ module Yamatanooroti::WindowsTestCaseModule
     h_proc = DL.OpenProcess(DL::PROCESS_ALL_ACCESS, 0, pid)
     if (h_proc)
       r = DL.TerminateProcess(h_proc, 0)
-      # error_message(r, "TerminateProcess")
+     error_message(r, "TerminateProcess")
       r = DL.CloseHandle(h_proc)
       error_message(r, "CloseHandle")
     end
