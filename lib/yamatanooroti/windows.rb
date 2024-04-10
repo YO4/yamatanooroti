@@ -387,11 +387,8 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   private def setup_cp(cp)
-    @codepage_success_p = in_child do
-      if cp
-        `chcp #{Integer(cp)} > NUL`
-        $?.success?
-      end
+    if cp
+      @codepage_success_p = in_child { system("chcp #{Integer(cp)} > NUL") }
     end
   end
 
