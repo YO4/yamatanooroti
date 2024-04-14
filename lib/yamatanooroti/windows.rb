@@ -1,4 +1,5 @@
 require 'test/unit'
+require 'stringio'
 require 'fiddle/import'
 require 'fiddle/types'
 
@@ -207,6 +208,8 @@ module Yamatanooroti::WindowsTestCaseModule
   DL = Yamatanooroti::WindowsDefinition
 
   private def in_child
+    stderr = $stderr
+    $stderr = StringIO.new
     conin = conout = nil
     r = DL.FreeConsole()
     error_message(r, "FreeConsole")
@@ -237,6 +240,7 @@ module Yamatanooroti::WindowsTestCaseModule
     error_message(conout.to_i == DL::INVALID_HANDLE_VALUE ? 0 : 1, "conout$")
     return nil if conout.to_i == DL::INVALID_HANDLE_VALUE
     yield(conin.to_i, conout.to_i)
+  rescue => evar
   ensure
     if conin != nil && conin.to_i != DL::INVALID_HANDLE_VALUE
       r = DL.CloseHandle(conin)
@@ -250,6 +254,9 @@ module Yamatanooroti::WindowsTestCaseModule
     error_message(r, "FreeConsole")
     r = DL.AttachConsole(DL::ATTACH_PARENT_PROCESS)
     error_message(r, 'AttachConsole')
+    stderr.write $stderr.read
+    $stderr = stderr
+    raise evar if evar
   end
 
   private def setup_console(height, width)
@@ -378,12 +385,58 @@ module Yamatanooroti::WindowsTestCaseModule
     result.reverse
   end
 
+  class TargetProcessManager
+    def initialize(command)
+      @errin, err = IO.pipe
+      @pid = spawn(command, {in: ["conin$", File::RDWR | File::BINARY], out: ["conout$", File::RDWR | File::BINARY], err: err})
+      err.close
+      @closed = false
+      @status = nil
+      @q = Thread::Queue.new
+      @t = Thread.new do
+        err = @errin.gets
+        @q << err if err
+      end
+    end
+
+    def closed?
+      @closed ||= !(@status = Process.wait2(@pid, Process::WNOHANG)).nil?
+    end
+
+    private def consume(buffer)
+      while !@q.empty?
+        buffer << @q.shift
+      end
+    end
+
+    def ensure_close
+      @errin.close if !@errin.closed?
+    end
+
+    def sync
+      buffer = ""
+      if closed?
+        @t.kill
+        @t.join
+        consume(buffer)
+        rest = "".b
+        while ((str = @errin.read_nonblock(1024, exception: false)).is_a?(String)) do
+          rest << str
+        end
+        buffer << rest.force_encoding(Encoding.default_external) << "\n" if rest != ""
+      else
+        consume(buffer)
+      end
+      $stderr.write buffer if buffer != ""
+    end
+  end
+
   private def launch(command)
-    pid = in_child do
-      spawn(command, {in: ["conin$", File::RDWR | File::BINARY], out: ["conout$", File::RDWR | File::BINARY], err: STDERR})
+    target = in_child do
+      TargetProcessManager.new(command)
     end
     sleep @wait
-    pid
+    target
   end
 
   private def setup_cp(cp)
@@ -415,9 +468,6 @@ module Yamatanooroti::WindowsTestCaseModule
 
   private def log(str)
     $stderr.puts str
-    open('aaa', 'a') do |fp|
-      fp.puts str
-    end
   end
 
   def write(str)
@@ -449,7 +499,8 @@ module Yamatanooroti::WindowsTestCaseModule
         r = DL.GetNumberOfConsoleInputEvents(conin, n)
         error_message(r, 'GetNumberOfConsoleInputEvents')
         break if n.to_str.unpack1("L") == 0
-        break if Process.wait(@pid, Process::WNOHANG)
+        @target.sync
+        break if @target.closed?
       end
     end
   end
@@ -507,11 +558,14 @@ module Yamatanooroti::WindowsTestCaseModule
   end
 
   def close
-    sleep @wait
+    @target.sync
+    sleep @wait if !@target.closed?
     # read first before kill the console process including output
     @result = retrieve_screen
 
     free_resources
+    @target.sync
+    @target.ensure_close
   end
 
   private def retrieve_screen
@@ -556,7 +610,7 @@ module Yamatanooroti::WindowsTestCaseModule
     @result = nil
     setup_console(height, width)
     setup_cp(codepage)
-    @pid = launch(command.map{ |c| quote_command_arg(c) }.join(' '))
+    @target = launch(command.map{ |c| quote_command_arg(c) }.join(' '))
     case startup_message
     when String
       check_startup_message = ->(message) {
@@ -571,7 +625,8 @@ module Yamatanooroti::WindowsTestCaseModule
       loop do
         screen = retrieve_screen.join("\n").sub(/\n*\z/, "\n")
         break if check_startup_message.(screen)
-        break if Process.wait(@pid, Process::WNOHANG)
+        @target.sync
+        break if @target.closed?
         sleep @wait
       end
     end
