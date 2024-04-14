@@ -549,9 +549,9 @@ module Yamatanooroti::WindowsTestCaseModule
       kill_process_tree(process_table, child_pid)
     end
     h_proc = DL.OpenProcess(DL::PROCESS_ALL_ACCESS, 0, pid)
-    if (h_proc)
+    if (h_proc.to_i != 0)
       r = DL.TerminateProcess(h_proc, 0)
-     error_message(r, "TerminateProcess")
+      error_message(r, "TerminateProcess")
       r = DL.CloseHandle(h_proc)
       error_message(r, "CloseHandle")
     end
