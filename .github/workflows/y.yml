@@ -3,8 +3,7 @@ name: CI
 on:
   push:
   pull_request:
-  schedule:
-    - cron: "30 14 * * *"
+  workflow_call:
 
 jobs:
   ruby-versions:

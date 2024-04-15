@@ -1,0 +1,10 @@
+name: schedule
+
+on:
+  schedule:
+    - cron: "30 14 * * *"
+
+jobs:
+  schedule:
+    uses: ./.github/workflows/y.yml
+
