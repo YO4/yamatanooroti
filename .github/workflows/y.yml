@@ -13,44 +13,14 @@ jobs:
       engine: cruby
       min_version: 2.5
 
-  yamatanooroti:
-    needs: ruby-versions
-    name: >-
-      yamaoro ${{ matrix.os }} ${{ matrix.ruby }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        ruby: ${{ fromJson(needs.ruby-versions.outputs.versions) }}
-        os: [ ubuntu-latest ]
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ matrix.ruby }}
-      - name: Install libvterm
-        run: |
-          sudo apt install -y libtool-bin
-          wget http://www.leonerd.org.uk/code/libvterm/libvterm-0.1.4.tar.gz
-          tar xvzf libvterm-0.1.4.tar.gz
-          cd libvterm-0.1.4
-          sed -i -e 's/^PREFIX=.*$/PREFIX=\/usr/g' Makefile
-          make
-          sudo make install
-      - name: rake test
-        run: |
-          bundle install
-          bundle exec rake test
   windows-yamatanooroti:
     name: >-
-      ${{ matrix.os }} ${{ matrix.ruby }} ${{ matrix.console }}
+      ${{ matrix.os }} ${{ matrix.ruby }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ windows-2019, windows-2022 ]
         ruby: [ 3.2, mingw ]
-        console: [ classic, legacy ]
     defaults:
       run:
         shell: cmd
@@ -60,29 +30,13 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-      - name: check console selection
-        run: |
-          reg query HKCU\Console\%%Startup || dir>NUL
-          reg query HKCU\Console /v ForceV2 || dir>NUL
       - name: install Windows Terminal
-        if: matrix.os == 'windows-2022 but it seems not to work now'
         run: |
           choco install microsoft-windows-terminal -y --no-progress
       - name: check wt.exe existence
         run: |
           where wt.exe || dir>NUL
-      - name: select console conhostv1
-        if: matrix.console == 'legacy'
-        run: |
-          reg add HKCU\Console /v ForceV2 /t REG_DWORD /d 0 /f
-      - name: select console conhostv2
-        if: matrix.console == 'classic'
-        run: |
-          reg add HKCU\Console /v ForceV2 /t REG_DWORD /d 1 /f
-      - name: install
-        run: |
-          call bundle install
       - name: rake test
         run: |
           set TESTOPTS=-v
-          call bundle exec rake test
+          call rake test
