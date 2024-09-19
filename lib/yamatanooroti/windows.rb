@@ -367,6 +367,7 @@ module Yamatanooroti::WindowsTestCaseModule
       command = %q[ruby.exe --disable=gems -e sleep"] # console keeping process
       @console_process_info = DL.create_console(command)
       raise if @console_process_info == nil
+      @console_process_id = @console_process_info.dwProcessId
 
       # wait for console startup complete
       8.times do |n|
@@ -386,7 +387,7 @@ module Yamatanooroti::WindowsTestCaseModule
 
       DL.free_console
       # this can be fail while new process is starting
-      r = DL.attach_console(@console_process_info.dwProcessId, maybe_fail: true)
+      r = DL.attach_console(@console_process_id, maybe_fail: true)
       return nil unless r
 
       if open
@@ -511,6 +512,184 @@ module Yamatanooroti::WindowsTestCaseModule
     result.reverse
   end
 
+####################
+  class TargetWindowsTerminalManager < TargetConhostManager
+
+def do_tasklist(filter)
+  list = loop do
+    sleep 0.1
+    tasklist_out = `tasklist /FI "#{filter}"`.lines
+    break tasklist_out if tasklist_out.length == 4
+    if tasklist_out.length > 4
+      return 0
+    end
+  end
+  pid_start = list[2].index(/ \K=/)
+  list[3][pid_start..-1].to_i
+end
+
+def pid_from_imagename(name)
+  do_tasklist("IMAGENAME eq #{name}")
+end
+
+def pid_from_windowtitle(name)
+  do_tasklist("WINDOWTITLE eq #{name}")
+end
+
+def pid_from_pid(pid)
+  do_tasklist("PID eq #{pid}")
+end
+
+    def new_id
+      self.class.class_exec do
+        @count ||= 0
+        id = "yamaoro#{Process.pid}##{@count}"
+        @count = @count + 1
+        return id
+      end
+    end
+
+    def close
+      @process_list.each { |pid|
+        system("taskkill.exe", "/F", "/PID", "#{pid}", {[:out, :err] => "NUL"}) unless ENV['YAMATANOOROTI_NO_CLOSE']
+      }
+      #DL.close_handle(@console_process_handle)
+      Process.kill("KILL", @wt_pid)
+    end
+
+    def new_wt(rows, cols, split = false)
+      while true
+        wt_id = new_id
+        marker_command = %w[findstr.exe yamatanooroti]
+        keeper_command = %w[choice.exe /N]
+
+        command = "cmd /s /c \"wt.exe -w #{wt_id} --size #{cols},#{rows} nt --title #{wt_id} #{marker_command.join(" ")}\""
+        spawn(command)
+        sleep 0.25
+        wt_pid = pid_from_windowtitle(wt_id)
+        marker_pid = pid_from_imagename(marker_command[0])
+
+        if marker_pid == 0
+          system("taskkill /PID #{wt_pid} /F /T")
+          sleep 0.1 + rand
+          redo
+        end
+        @console_process_id = marker_pid
+
+        keeper_pid, keeper_writer = attach(marker_pid) do
+          r, w = IO.pipe
+          pid = spawn(keeper_command.join(" "), {in: r})
+          r.close
+          [pid, w]
+        end
+        pid_from_pid(keeper_pid)
+        Process.kill("KILL", marker_pid)
+
+        @wt_id = wt_id
+        @wt_pid = wt_pid
+        @console_process_id = keeper_pid
+        @keeper_writer = keeper_writer
+        return keeper_pid
+      end
+    end
+
+    def get_size
+      @size = attach(@console_process_id) do |conin, conout|
+        csbi = DL.get_console_screen_buffer_info(conout)
+        #$stderr.puts [csbi.Bottom + 1, csbi.Right + 1].inspect
+        [csbi.Bottom + 1, csbi.Right + 1]
+      end
+    end
+
+    def self.setup_console(height, width)
+      if @minimum_width.nil? || @minimum_width <= width
+        wt = self.new(height, width)
+        return nil unless wt
+      end
+      if wt
+        size = wt.get_size
+        if size == [height, width]
+          return wt 
+        else
+          @minimum_width = size[1]
+          @div_to_width ||= {}
+          @width_to_div ||= {}
+          wt.close
+        end
+      end
+      expanded_size = @minimum_width + 30
+      wt = self.new(height, expanded_size)
+      div = @width_to_div[width]
+      div ||= (width * 98 + (@minimum_width - width) * 9) / (expanded_size - 5)
+      loop do
+        w = dw = @div_to_width[div]
+        unless w
+          wt.split(div/100.0)
+          size = wt.get_size
+          @div_to_width[div] = w = size[1]
+        end
+        if w == width
+          wt.split(div/100.0) if dw
+          @width_to_div[width] = div
+          return wt
+        else
+          unless dw
+            wt.close_pane
+            sleep 0.25
+          end
+          if w > width
+            div -= 1
+            if div <= 0
+              return nil
+            end
+          else
+            div += 1
+            if div >= 100
+              return nil
+            end
+          end
+        end
+      end
+    end
+
+    def initialize(height, width, split = false)
+      @process_list = [new_wt(height, width, split)]
+    end
+
+    def split(div = 0.5)
+      marker_command = %w[findstr.exe yamatanooroti]
+      keeper_command = %w[choice.exe /N]
+      command = "cmd /s /c \"wt.exe -w #{@wt_id} sp -V --title #{@wt_id} -s #{div} #{marker_command.join(" ")}\""
+      spawn(command)
+      sleep 0.25
+      marker_pid = pid_from_imagename(marker_command[0])
+
+      if marker_pid == 0
+        return nil
+      end
+      @console_process_id = marker_pid
+
+      keeper_pid, keeper_writer = attach(marker_pid) do
+        r, w = IO.pipe
+        pid = spawn(keeper_command.join(" "), {in: r})
+        r.close
+        [pid, w]
+      end
+      pid_from_pid(keeper_pid)
+      Process.kill("KILL", marker_pid)
+      @console_process_id = keeper_pid
+      @process_list << keeper_pid
+    end
+
+    def close_pane
+      system("taskkill.exe", "/F", "/PID", "#{@process_list.pop}", {[:out, :err] => "NUL"})
+      @console_process_id = @process_list[-1]
+    end
+
+  #  private :new
+  end
+####################
+
   class TargetProcessManager
     def initialize(command)
       @errin, err = IO.pipe
@@ -606,7 +785,7 @@ module Yamatanooroti::WindowsTestCaseModule
   def start_terminal_with_cp(height, width, command, wait: 1, startup_message: nil, codepage: nil)
     @wait = wait * (ENV['YAMATANOOROTI_WAIT_RATIO']&.to_f || 1.0)
     @result = nil
-    @console = TargetConhostManager.setup_console(height, width)
+    @console = TargetWindowsTerminalManager.setup_console(height, width)
     @codepage_success_p = @console.setup_cp(codepage)
     @target = @console.launch(command.map{ |c| quote_command_arg(c) }.join(' '))
     sleep @wait
