@@ -36,6 +36,7 @@ jobs:
       - name: check wt.exe existence
         run: |
           where wt.exe || dir>NUL
+          dir "C:/Users/runneradmin/AppData/Local/Microsoft/WindowsApps"
       - name: rake test
         run: |
           set TESTOPTS=-v

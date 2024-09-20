@@ -563,7 +563,7 @@ end
         marker_command = %w[findstr.exe yamatanooroti]
         keeper_command = %w[choice.exe /N]
 
-        command = "cmd /s /c \"wt.exe -w #{wt_id} --size #{cols},#{rows} nt --title #{wt_id} #{marker_command.join(" ")}\""
+        command = "cmd /s /c \"wt -w #{wt_id} --size #{cols},#{rows} nt --title #{wt_id} #{marker_command.join(" ")}\""
         spawn(command)
         sleep 0.25
         wt_pid = pid_from_windowtitle(wt_id)
@@ -659,7 +659,7 @@ end
     def split(div = 0.5)
       marker_command = %w[findstr.exe yamatanooroti]
       keeper_command = %w[choice.exe /N]
-      command = "cmd /s /c \"wt.exe -w #{@wt_id} sp -V --title #{@wt_id} -s #{div} #{marker_command.join(" ")}\""
+      command = "cmd /s /c \"wt -w #{@wt_id} sp -V --title #{@wt_id} -s #{div} #{marker_command.join(" ")}\""
       spawn(command)
       sleep 0.25
       marker_pid = pid_from_imagename(marker_command[0])
