@@ -32,12 +32,18 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
       - name: install Windows Terminal
         run: |
-          choco install microsoft-windows-terminal --version 1.21.2361 -y --no-progress
+          #choco install microsoft-windows-terminal --version 1.21.2361 -y --no-progress
+          mkdir tmp
+          mkdir tmp\zip
+          curl -O --output-dir tmp/zip -L https://github.com/microsoft/terminal/releases/download/v1.21.2361.0/Microsoft.WindowsTerminal_1.21.2361.0_x64.zip
+          c:\windows\system32\tar --help
+          c:\windows\system32\tar xzvf tmp/zip/Microsoft.WindowsTerminal_1.21.2361.0_x64.zip -C tmp
+          dir tmp
+          dir tmp\zip
+          dir "tmp\terminal-1.21.2361.0"
       - name: check wt.exe existence
         run: |
           where wt.exe || dir>NUL
-          dir "C:/Users/runneradmin/AppData/Local/Microsoft/WindowsApps"
-          dir "C:/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.21.2361.0_x64__8wekyb3d8bbwe"
       - name: rake test
         run: |
           set TESTOPTS=-v

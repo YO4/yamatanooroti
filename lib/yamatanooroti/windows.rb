@@ -563,12 +563,17 @@ end
         marker_command = %w[findstr.exe yamatanooroti]
         keeper_command = %w[choice.exe /N]
 
-        command = "cmd /s /c \"\"C:/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.21.2361.0_x64__8wekyb3d8bbwe/wt.exe\" -w #{wt_id} --size #{cols},#{rows} nt --title #{wt_id} #{marker_command.join(" ")}\""
-        spawn(command)
+        command = "tmp/terminal-1.21.2361.0/wt.exe -w #{wt_id} --size #{cols},#{rows} nt --title #{wt_id} #{marker_command.join(" ")}"
+puts command
+p       spawn(command)
         sleep 0.25
+p "done spawn wt.exe "
+p "do tasklist"
         wt_pid = pid_from_windowtitle(wt_id)
+p wt_pid
+p "do tasklist"
         marker_pid = pid_from_imagename(marker_command[0])
-
+p [wt_pid, marker_pid]
         if marker_pid == 0
           system("taskkill /PID #{wt_pid} /F /T")
           sleep 0.1 + rand
@@ -577,10 +582,14 @@ end
         @console_process_id = marker_pid
 
         keeper_pid, keeper_writer = attach(marker_pid) do
-          r, w = IO.pipe
-          pid = spawn(keeper_command.join(" "), {in: r})
-          r.close
-          [pid, w]
+          begin
+            r, w = IO.pipe
+            pid = spawn(keeper_command.join(" "), {in: r})
+            r.close
+            [pid, w]
+          ensure
+            p pid
+          end
         end
         pid_from_pid(keeper_pid)
         Process.kill("KILL", marker_pid)
@@ -659,7 +668,7 @@ end
     def split(div = 0.5)
       marker_command = %w[findstr.exe yamatanooroti]
       keeper_command = %w[choice.exe /N]
-      command = "cmd /s /c \"\"C:/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.21.2361.0_x64__8wekyb3d8bbwe/wt.exe\" -w #{@wt_id} sp -V --title #{@wt_id} -s #{div} #{marker_command.join(" ")}\""
+      command = "tmp/terminal-1.21.2361.0/wt.exe -w #{@wt_id} sp -V --title #{@wt_id} -s #{div} #{marker_command.join(" ")}"
       spawn(command)
       sleep 0.25
       marker_pid = pid_from_imagename(marker_command[0])
