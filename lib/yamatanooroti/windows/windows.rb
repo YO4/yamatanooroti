@@ -64,6 +64,11 @@ module Yamatanooroti::WindowsConsoleSettings
     else
       @wt_exe = extract_terminal(prepare_terminal_portable)
     end
+    if @wt_exe
+      wt = Yamatanooroti::WindowsTerminalTerm.new(999, 999, 0.01, 5.0)
+      puts wt.get_size.then { "Windows Terminal max size: rows: #{_1}, columns: #{_2}" }
+      wt.close_console
+    end
   end
 
   Test::Unit.at_exit do
