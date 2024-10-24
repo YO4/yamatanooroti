@@ -138,6 +138,7 @@ class Yamatanooroti
           @keys = [keys] # [[image_name, search_signature], ...]
         end
         @pid = {}
+        @console_ready = false
       end
 
       def self.new_tab(wt, title)
@@ -148,7 +149,7 @@ class Yamatanooroti
                   "#{keeper_command}"
 
         DL.create_console(command, M.show_console_param())
-        self.new(wt, title, [M.keeper_commandname, signature])
+        new(wt, title, [M.keeper_commandname, signature])
       end
 
       def self.new_tab_hv(wt, title, hsplit, vsplit)
@@ -174,7 +175,7 @@ class Yamatanooroti
                   "#{keeper_command_v}"
 
         DL.create_console(command, M.show_console_param())
-        self.new(wt, title,
+        new(wt, title,
           [M.keeper_commandname, signature],
           [M.keeper_commandname, signature_h],
           [M.keeper_commandname, signature_v]
