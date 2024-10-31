@@ -120,7 +120,8 @@ module Yamatanooroti::WindowsConsoleSetup
           {
               "defaultProfile": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
               "disableAnimations": true,
-              "minimizeToNotificationArea": true,
+              "experimental.detectURLs": false,
+              "minimizeToNotificationArea": false,
               "profiles": 
               {
                   "defaults": 
@@ -144,6 +145,7 @@ module Yamatanooroti::WindowsConsoleSetup
                   ]
               },
               "showTabsInTitlebar": false,
+              "tabWidthMode": "compact",
               "warning.confirmCloseAllTabs": false,
               "warning.largePaste": false,
               "warning.multiLinePaste": false
