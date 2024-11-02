@@ -30,12 +30,13 @@ class Yamatanooroti::WindowsTerminalTerm
       Self.wt = self.new(*max_size, wait, timeout, Self.window_title)
     end
 
+    countup_testcase_title(name)
     Self.wt.new_tab(height, width, name)
     Self.wt
   end
 
   def console_process_id
-    @wt.active_tab&.pid
+    @wt.active_tab&.console_process_id
   end
 
   def get_size
@@ -58,8 +59,7 @@ class Yamatanooroti::WindowsTerminalTerm
     @wrote_and_not_yet_waited = false
     @name = name
 
-    Self.countup_testcase_title(name)
-    @wt.new_tab(height, width, Self.testcase_title(name))
+    @wt.new_tab(height, width, testcase_title(name))
   end
 
   def close_console(need_to_close = true)
@@ -67,9 +67,9 @@ class Yamatanooroti::WindowsTerminalTerm
       if @target && !@target.closed?
         @target.close
       end
-      @wt.close_tab
+      @wt&.close_tab
     else
-      @wt.detach_tab
+      @wt&.detach_tab
     end
   end
 

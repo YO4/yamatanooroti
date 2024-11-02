@@ -1,5 +1,3 @@
-require_relative 'wmi'
-
 class Yamatanooroti
 
   ### Yamatanooroti::WindowsTerminal
@@ -98,6 +96,7 @@ class Yamatanooroti
 
     def detach_tab
       if @active_tab
+        @active_tab.detach
         @active_tab = nil
         @tabs.pop
       end
@@ -125,40 +124,39 @@ class Yamatanooroti
 
       private_class_method :new
 
-      def initialize(wt, title, *keys)
+      def initialize(wt, title, *handles)
         @wt = wt
         @wait = wt.wait
         @timeout = wt.timeout
         @name = wt.name
         @title = title
         @closed = false
-        if keys[0].is_a?(Array)
-          @keys = keys
-        else
-          @keys = [keys] # [[image_name, search_signature], ...]
-        end
-        @pid = {}
-        @console_ready = false
+        @handles = handles
+        @pid = nil
       end
 
       def self.new_tab(wt, title)
-        signature = "#{title}:main"
-        keeper_command = M.keeper_commandline(signature)
+        pipename = M.get_pipename(title, "main")
+        pipe_handle = DL.create_named_pipe(pipename)
+        keeper_command = M.keeper_commandline(pipename)
         command = "#{wt.wt_command} " \
                   "nt --title #{title} " \
                   "#{keeper_command}"
 
         DL.create_console(command, M.show_console_param())
-        new(wt, title, [M.keeper_commandname, signature])
+        new(wt, title, pipe_handle)
       end
 
       def self.new_tab_hv(wt, title, hsplit, vsplit)
-        signature = "#{title}:main"
-        signature_h = "#{title}:h"
-        signature_v = "#{title}:v"
-        keeper_command = M.keeper_commandline(signature)
-        keeper_command_h = M.keeper_commandline(signature_h)
-        keeper_command_v = M.keeper_commandline(signature_v)
+        main_pipename = M.get_pipename(title, "main")
+        h_pipename = M.get_pipename(title, "h")
+        v_pipename = M.get_pipename(title, "v")
+        main_pipe_handle = DL.create_named_pipe(main_pipename)
+        h_pipe_handle = DL.create_named_pipe(h_pipename)
+        v_pipe_handle = DL.create_named_pipe(v_pipename)
+        keeper_command = M.keeper_commandline(main_pipename)
+        keeper_command_h = M.keeper_commandline(h_pipename)
+        keeper_command_v = M.keeper_commandline(v_pipename)
         command = "#{wt.wt_command} " \
                   "nt --title #{title} " \
                   "#{keeper_command}" \
@@ -175,16 +173,13 @@ class Yamatanooroti
                   "#{keeper_command_v}"
 
         DL.create_console(command, M.show_console_param())
-        new(wt, title,
-          [M.keeper_commandname, signature],
-          [M.keeper_commandname, signature_h],
-          [M.keeper_commandname, signature_v]
-        )
+        new(wt, title, main_pipe_handle, h_pipe_handle, v_pipe_handle)
       end
 
       def split_pane(div = 0.5, splitter: :v)
-        signature = "#{title}:#{splitter}"
-        keeper_command = M.keeper_commandline(signature)
+        pipename = get_pipename(title, ":#{splitter}")
+        pipe_handle = DL.create_named_pipe(pipename)
+        keeper_command = M.keeper_commandline(pipename)
         command = "#{@wt.wt_command} " \
                   "move-focus first; " \
                   "sp #{splitter == :v ? "-V" : "-H"} "\
@@ -193,67 +188,39 @@ class Yamatanooroti
                   "#{keeper_command}"
 
         orig_size = get_size()
-        DL.create_console(command, M.show_console_param())
-        @keys.push [M.keeper_commandname, signature]
+        DL.create_console(command, show_console_param())
+        @handles.push pipe_handle
         with_timeout("split console timed out.") { orig_size != get_size() }
       end
 
       def close_pane
         orig_size = get_size()
-        begin
-          Process.kill(:KILL, pid(@keys.last))
-        rescue Errno::ESRCH # No such process
-        end
+        DL.close_handle(@handles.pop)
         with_timeout("close pane timed out.") { orig_size != get_size() }
-        @pid[@keys.pop] = nil
       end
 
       def close
-        begin
-          Process.kill(:KILL, *all_pid) if !@closed
-        rescue Errno::ESRCH # No such process
+        unless @closed
+          @handles.each do |pipe_handle|
+            DL.close_handle(pipe_handle)
+          end
+          @handles.clear
         end
         @closed = true
       end
 
-      def pid(key = @keys[0])
-        pid = @pid[key]
-        if !pid
-          pid = keeper_pid = with_timeout("Windows Terminal keeper process detection failed.", @timeout) do
-            @pid[key] = search_pid(*key)
+      def detach
+        unless @closed
+          @handles.each do |pipe_handle|
+           castling(pipe_handle)
           end
+          @handles.clear
         end
-        pid
-      end
-
-      def search_pid(image_name, signature)
-        process = WMI::Win32_Process.query_name_and_commandline(image_name, signature, "ProcessId")[0]
-        process&.fetch("ProcessId")
-      end
-
-      def all_pid
-        keys = @keys.map { |key| @pid[key] ? nil : key }.compact
-        return @pid.values if keys.empty?
-        filter = keys.map do |sig|
-          WMI::Win32_Process.&(WMI::Win32_Process.eq("Name", sig[0]), WMI::Win32_Process.like("Commandline", "%#{sig[1]}%"))
-        end
-        result = WMI::Win32_Process.query(filter, "ProcessId").map { |h| h["ProcessId"] }
-        @pid.values.concat(result).compact
+        @closed = true
       end
 
       def console_process_id
-        pid = pid()
-        if !@console_ready
-          with_timeout("console startup check failed.") do
-            DL.free_console
-            DL.attach_console(pid, maybe_fail: true)
-          ensure
-            DL.free_console
-            DL.attach_console
-          end
-          @console_ready = true
-        end
-        pid
+        @pid ||= get_pid_from_pipe(@handles[0])
       end
 
       def get_size

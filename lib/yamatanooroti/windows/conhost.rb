@@ -15,13 +15,14 @@ class Yamatanooroti::ConhostTerm
     @codepage_success_p = nil
     @wrote_and_not_yet_waited = false
 
-    @console_process_id = DL.create_console(keeper_commandline(name), show_console_param())
-
-    sleep 0.1 if Yamatanooroti.options.windows == :"legacy-conhost" # ad-hoc
+    countup_testcase_title(name)
+    pipename = get_pipename(name)
+    @pipe_handle = DL.create_named_pipe(pipename)
+    DL.create_console(keeper_commandline(pipename), show_console_param())
 
     # wait for console startup complete
     with_timeout("Console process startup timed out.") do
-      attach_terminal(open: false, exception: false) { true }
+      @console_process_id = DL.get_named_pipe_client_processid(@pipe_handle, maybe_fail: true)
     end
 
     attach_terminal do |conin, conout|
@@ -30,16 +31,16 @@ class Yamatanooroti::ConhostTerm
   end
 
   def close_console(need_to_close = true)
-    if (need_to_close)
-      if @target && !@target.closed?
-        @target.close
+    if @console_process_id
+      if (need_to_close)
+        if @target && !@target.closed?
+          @target.close
+        end
+        DL.close_handle(@pipe_handle)
+      else
+        castling(@pipe_handle)
       end
-      begin
-        Process.kill("KILL", @console_process_id) if @console_process_id
-      rescue Errno::ESRCH # No such process
-      ensure
-        @console_process_id = nil
-      end
+      @console_process_id = @pipe_handle = nil
     end
   end
 

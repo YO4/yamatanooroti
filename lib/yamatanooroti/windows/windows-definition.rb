@@ -22,8 +22,7 @@ module Yamatanooroti::WindowsDefinition
   typealias 'LPSTR', 'void*'
   typealias 'LPCCH', 'void*'
   typealias 'LPBOOL', 'void*'
-  typealias 'LPWORD', 'void*'
-  typealias 'ULONG_PTR', 'ULONG*'
+  typealias 'PULONG', 'ULONG*'
   typealias 'LONG', 'int'
   typealias 'HLOCAL', 'HANDLE'
 
@@ -193,6 +192,18 @@ module Yamatanooroti::WindowsDefinition
   OPEN_EXISTING = 3
   INVALID_HANDLE_VALUE = 0xffffffff
 
+  # HANDLE CreateNamedPipeA(LPCSTR lpName, DWORD dwOpenMode, DWORD dwPipeMode, DWORD nMaxInstances, DWORD nOutBufferSize, DWORD nInBufferSize, DWORD nDefaultTimeOut, LPSECURITY_ATTRIBUTES lpSecurityAttributes);
+  extern 'HANDLE CreateNamedPipeA(LPCSTR, DWORD, DWORD, DWORD, DWORD, DWORD, DWORD, LPSECURITY_ATTRIBUTES);', :stdcall
+  # BOOL ConnectNamedPipe(HANDLE hNamedPipe, LPOVERLAPPED lpOverlapped);
+  extern 'BOOL ConnectNamedPipe(HANDLE, LPVOID);', :stdcall
+  # BOOL DisconnectNamedPipe(HANDLE hNamedPipe);
+  extern 'BOOL DisconnectNamedPipe(HANDLE);', :stdcall
+  # BOOL GetNamedPipeClientProcessId(HANDLE Pipe, PULONG ClientProcessId);
+  extern 'BOOL GetNamedPipeClientProcessId(HANDLE, PULONG);', :stdcall
+  PIPE_ACCESS_INBOUND = 0x00000001
+  PIPE_ACCESS_OUTBOUND = 0x00000002
+  PIPE_ACCESS_DUPLEX = 0x00000003
+
   # DWORD FormatMessageW(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPWSTR lpBuffer, DWORD nSize, va_list *Arguments);
   extern 'DWORD FormatMessageW(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId, DWORD dwLanguageId, LPWSTR lpBuffer, DWORD nSize, va_list *Arguments);', :stdcall
   # HLOCAL LocalFree(HLOCAL hMem);
@@ -217,7 +228,7 @@ module Yamatanooroti::WindowsDefinition
       FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
       Fiddle::NULL,
       err,
-      0x0,
+      0x409, # en-US
       string,
       0,
       Fiddle::NULL
@@ -462,6 +473,35 @@ module Yamatanooroti::WindowsDefinition
   def generate_console_ctrl_event(event, pgrp)
     r = GenerateConsoleCtrlEvent(event, pgrp)
     return successful_or_if_not_messageout(r, 'GenerateConsoleCtrlEvent')
+  end
+
+  def create_named_pipe(name)
+    ph = CreateNamedPipeA(%Q[\\\\.\\\pipe\\#{name}], PIPE_ACCESS_OUTBOUND, 0, 1, 0, 0, 0, nil)
+    ph = [ph].pack("J").unpack1("L")
+    successful_or_if_not_messageout(0, name) if ph == INVALID_HANDLE_VALUE
+    ph
+  end
+
+  def connect_named_pipe(pipe_handle)
+    r = ConnectNamedPipe(pipe_handle, nil)
+    return successful_or_if_not_messageout(r, 'ConnectNamedPipe')
+  end
+
+  def disconnect_named_pipe(pipe_handle)
+    r = DisconnectNamedPipe(pipe_handle)
+    return successful_or_if_not_messageout(r, 'DisconnectNamedPipe')
+  end
+
+  def get_named_pipe_client_processid(pipe_handle, maybe_fail: false)
+    pid = Fiddle::Pointer.malloc(Fiddle::SIZEOF_ULONG, FREE)
+    r = GetNamedPipeClientProcessId(pipe_handle, pid)
+    if !maybe_fail
+      successful_or_if_not_messageout(r, "GetNamedPipeClientProcessId")
+      return pid.to_str.unpack1("L")
+    else
+      return pid.to_str.unpack1("L") if r != 0
+      return nil
+    end
   end
 
   # Ctrl+C trap support

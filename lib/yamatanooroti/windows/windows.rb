@@ -3,20 +3,55 @@ require 'stringio'
 module Yamatanooroti::WindowsTermMixin
   DL = Yamatanooroti::WindowsDefinition
 
-  CONSOLE_KEEPING_COMMANDNAME = "ruby.exe"
-  CONSOLE_KEEPING_COMMANDLINE = %q[ruby.exe --disable=gems -e "Signal.trap(:INT, nil) and sleep or sleep # SIG"]
+  CONSOLE_KEEPING_COMMANDLINE = %Q[cmd.exe /c start "" /B #{ENV["SystemRoot"]||"C:\\Windows"}\\System32\\more \\\\.\\pipe\\PIPENAME]
+  CONSOLE_LEAVING_COMMANDLINE = %q[ruby.exe --disable=gems -e "Signal.trap(:INT, nil) or true and sleep"]
 
   module_function def keeper_commandname
     CONSOLE_KEEPING_COMMANDNAME
   end
 
-  module_function def keeper_commandline(signature)
-    CONSOLE_KEEPING_COMMANDLINE.sub("SIG", signature)
+  module_function def keeper_commandline(pipename)
+    CONSOLE_KEEPING_COMMANDLINE.sub("PIPENAME", pipename)
   end
 
   module_function def show_console_param
     map = DL::SHOWWINDOW_MAP[Yamatanooroti.options.windows] || DL::SHOWWINDOW_MAP[:terminal]
     map.fetch(Yamatanooroti.options.show_console ? :show : :hide)
+  end
+
+  module_function def testcase_title(title)
+    count = (@@iter_count ||= {})[title]
+    count ||= countup_testcase_title(title)
+    "#{title}##{count}@#{Process.pid}".strip
+  end
+
+  module_function def countup_testcase_title(title)
+    counter = (@@iter_count ||= {})
+    count = counter[title] || 0
+    counter[title] = count + 1
+  end
+
+  module_function def get_pipename(title, suffix = nil)
+    "yamatanooroti_#{self.testcase_title(title)}#{suffix ? ":#{suffix}" : ""}"
+  end
+
+  private def get_pid_from_pipe(pipehandle)
+    with_timeout("Waiting pipe connection timed out.") do
+      DL.get_named_pipe_client_processid(pipehandle, maybe_fail: true)
+    end
+  end
+
+  private def castling(pipehandle)
+    pid = get_pid_from_pipe(pipehandle)
+    begin
+      DL.free_console
+      DL.attach_console(pid)
+      spawn CONSOLE_LEAVING_COMMANDLINE
+    ensure
+      DL.free_console
+      DL.attach_console
+    end
+    DL.close_handle(pipehandle)
   end
 
   private def with_timeout(timeout_message, timeout = @timeout, &block)
@@ -293,9 +328,6 @@ module Yamatanooroti::WindowsTermMixin
   end
 
   def raise_interrupt
-    @target.close
     close!
-    DL.at_exit
-    raise Interrupt
   end
 end
