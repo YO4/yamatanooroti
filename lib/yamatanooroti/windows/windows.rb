@@ -32,7 +32,7 @@ module Yamatanooroti::WindowsTermMixin
   end
 
   module_function def get_pipename(title, suffix = nil)
-    "yamatanooroti_#{self.testcase_title(title)}#{suffix ? ":#{suffix}" : ""}"
+    "yamatanooroti_#{testcase_title(title)}#{suffix ? ":#{suffix}" : ""}"
   end
 
   private def get_pid_from_pipe(pipehandle)

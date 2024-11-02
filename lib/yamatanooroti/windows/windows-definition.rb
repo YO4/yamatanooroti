@@ -28,6 +28,7 @@ module Yamatanooroti::WindowsDefinition
 
   Fiddle::SIZEOF_DWORD = Fiddle::SIZEOF_LONG
   Fiddle::SIZEOF_WORD = Fiddle::SIZEOF_SHORT
+  Fiddle::SIZEOF_ULONG = Fiddle::SIZEOF_LONG if !Fiddle.const_defined?(:SIZEOF_ULONG)
 
   COORD = struct [
     'SHORT X',
