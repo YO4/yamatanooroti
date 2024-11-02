@@ -8,6 +8,7 @@ class Yamatanooroti::ConhostTerm
   attr_reader :console_process_id
 
   def initialize(height, width, wait, timeout, name)
+    check_interrupt
     @wait = wait
     @timeout = timeout
     @name = name

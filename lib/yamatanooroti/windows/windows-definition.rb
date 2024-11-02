@@ -521,22 +521,26 @@ module Yamatanooroti::WindowsDefinition
     end
   end
 
-  @interrupt_monitor_pid = spawn("ruby --disable=gems -e sleep #InterruptMonitor", [:out, :err] => "NUL")
-  @interrupt_monitor = Process.detach(@interrupt_monitor_pid)
+  @pipe = IO.pipe 
+  @interrupt_catcher_pid = spawn("choice /m #InterruptCatcher", {:in => @pipe[0], [:out, :err] => "NUL"})
+  @interrupt_catcher = Process.detach(@interrupt_catcher_pid)
   ignore_console_control_handler
   @interrupted_p = nil
+  @pipe[0].close
 
   def self.interrupted?
     @interrupted_p ||
-    unless @interrupt_monitor.alive?
-      @interrupted_p = (@interrupt_monitor.value.exitstatus == 3)
+    unless @interrupt_catcher.alive?
+      @interrupted_p = (@interrupt_catcher.value.exitstatus == 0)
     end
   end
 
   def self.at_exit
-    if @interrupt_monitor.alive?
+    @pipe[1].close unless @pipe[1].closed?
+    if @interrupt_catcher.alive?
+      sleep 0.01
       begin
-        Process.kill("KILL", @interrupt_monitor_pid)
+        Process.kill("KILL", @interrupt_catcher_pid)
       rescue Errno::ESRCH # No such process
       end
     end

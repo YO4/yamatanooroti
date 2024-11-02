@@ -273,6 +273,7 @@ module Yamatanooroti::WindowsTermMixin
     @target.close if close_request
     @result = retrieve_screen if retrieve_request
     @result ||= ""
+    check_interrupt
   end
 
   def clear_need_wait_flag
@@ -328,6 +329,8 @@ module Yamatanooroti::WindowsTermMixin
   end
 
   def raise_interrupt
+    @target&.close
     close!
+    raise Interrupt, "Interrupt: Interrupt catcher process died."
   end
 end

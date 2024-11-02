@@ -44,6 +44,7 @@ class Yamatanooroti::WindowsTerminalTerm
   end
 
   def initialize(height, width, wait, timeout, title = "yamatanooroti")
+    check_interrupt
     @wait = wait
     @timeout = timeout
     @result = nil
