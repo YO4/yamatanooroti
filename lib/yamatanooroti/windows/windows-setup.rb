@@ -102,57 +102,79 @@ module Yamatanooroti::WindowsConsoleSetup
   def self.extract_terminal(path)
     tar = File.join(ENV['SystemRoot'], "system32", "tar.exe")
     extract_dir = File.join(tmpdir, "wt")
-    FileUtils.remove_entry(extract_dir) if File.exist?(extract_dir)
-    FileUtils.mkdir_p(extract_dir)
-    puts "extracting #{File.basename(path)}"
-    system tar, "xf", path, "-C", extract_dir
-    wt = Dir["**/wt.exe", base: extract_dir]
-    raise "not found wt.exe. aborted." if wt.size < 1
-    raise "found wt.exe #{wt.size} times unexpectedly. aborted." if wt.size > 1
-    wt = File.join(extract_dir, wt[0])
-    wt_dir = File.dirname(wt)
-    portable_mark = File.join(wt_dir, ".portable")
-    open(portable_mark, "w") { |f| f.puts } unless File.exist?(portable_mark)
-    settings = File.join(wt_dir, "settings", "settings.json")
-    FileUtils.mkdir_p(File.dirname(settings))
-    open(settings, "wb") do |settings|
-      settings.write <<~'JSON'
-          {
-              "defaultProfile": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
-              "disableAnimations": true,
-              "experimental.detectURLs": false,
-              "minimizeToNotificationArea": false,
-              "profiles": 
-              {
-                  "defaults": 
-                  {
-                      "bellStyle": "none",
-                      "closeOnExit": "always",
-                      "font": 
-                      {
-                          "size": 9
-                      },
-                      "padding": "0",
-                      "scrollbarState": "always"
-                  },
-                  "list": 
-                  [
-                      {
-                          "commandline": "%SystemRoot%\\System32\\cmd.exe",
-                          "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
-                          "name": "cmd.exe"
-                      }
-                  ]
-              },
-              "showTabsInTitlebar": false,
-              "tabWidthMode": "compact",
-              "warning.confirmCloseAllTabs": false,
-              "warning.largePaste": false,
-              "warning.multiLinePaste": false
-          }
-      JSON
+    running_wt_exist = false
+    if File.exist?(extract_dir)
+      wt = Dir["**/OpenConsole.exe", base: extract_dir]
+      running_wt_exist = wt.reduce(false) do |result, path|
+        result ||= begin
+          File.delete(File.join(extract_dir, path))
+          false
+        rescue SystemCallError
+          true
+        end
+      end
+      FileUtils.remove_entry(extract_dir) if !running_wt_exist
     end
-    puts "use #{wt} for windows console"
+    if !running_wt_exist
+      FileUtils.mkdir_p(extract_dir)
+      puts "extracting #{File.basename(path)}"
+      system tar, "xf", path, "-C", extract_dir
+      wt = Dir["**/wt.exe", base: extract_dir]
+      raise "not found wt.exe. aborted." if wt.size < 1
+      raise "found wt.exe #{wt.size} times unexpectedly. aborted." if wt.size > 1
+      wt = File.join(extract_dir, wt[0])
+      wt_dir = File.dirname(wt)
+      portable_mark = File.join(wt_dir, ".portable")
+      open(portable_mark, "w") { |f| f.puts } unless File.exist?(portable_mark)
+      settings = File.join(wt_dir, "settings", "settings.json")
+      FileUtils.mkdir_p(File.dirname(settings))
+      open(settings, "wb") do |settings|
+        settings.write <<~'JSON'
+            {
+                "defaultProfile": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+                "disableAnimations": true,
+                "experimental.detectURLs": false,
+                "minimizeToNotificationArea": false,
+                "profiles": 
+                {
+                    "defaults": 
+                    {
+                        "bellStyle": "none",
+                        "closeOnExit": "always",
+                        "font": 
+                        {
+                            "size": 9
+                        },
+                        "padding": "0",
+                        "scrollbarState": "always"
+                    },
+                    "list": 
+                    [
+                        {
+                            "commandline": "%SystemRoot%\\System32\\cmd.exe",
+                            "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+                            "name": "cmd.exe"
+                        }
+                    ]
+                },
+                "showTabsInTitlebar": false,
+                "tabWidthMode": "compact",
+                "warning.confirmCloseAllTabs": false,
+                "warning.largePaste": false,
+                "warning.multiLinePaste": false
+            }
+        JSON
+      end
+      puts "use #{wt} for windows console"
+    else
+      puts "running Windows Terminal found."
+      wt = Dir["**/wt.exe", base: extract_dir]
+      raise "not found wt.exe. aborted." if wt.size < 1
+      raise "found wt.exe #{wt.size} times unexpectedly. aborted." if wt.size > 1
+      wt = File.join(extract_dir, wt[0])
+      wt_dir = File.dirname(wt)
+      puts "use existing #{wt} for windows console"
+    end
     wt
   end
 
@@ -160,6 +182,7 @@ module Yamatanooroti::WindowsConsoleSetup
     dir = tmpdir
     header = `curl --head -sS -o #{tmpdir}/header -L -w "%{url_effective}\n%header{ETag}\n%header{Content-Length}\n%header{Last-Modified}" https://aka.ms/terminal-canary-zip-x64`
     url, etag, length, timestamp = *header.lines.map(&:chomp)
+    puts "Windows Terminal canary #{timestamp}"
     name = File.basename(URI.parse(url).path)
     path = File.join(dir, "wt_dists", "canary", etag.delete('"'), name)
     if File.exist?(path)
