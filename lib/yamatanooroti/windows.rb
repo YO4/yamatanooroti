@@ -37,11 +37,10 @@ module Yamatanooroti::WindowsTestCaseModule
       end
     end
     if Yamatanooroti.options.conhost
-      @terminal = Yamatanooroti::ConhostTerm.setup_console(height, width, @wait, @timeout, local_name)
+      @terminal = Yamatanooroti::ConhostTerm.setup_console(height, width, codepage, @wait, @timeout, local_name)
     else
-      @terminal = Yamatanooroti::WindowsTerminalTerm.setup_console(height, width, @wait, @timeout, local_name)
+      @terminal = Yamatanooroti::WindowsTerminalTerm.setup_console(height, width, codepage, @wait, @timeout, local_name)
     end
-    @terminal.setup_cp(codepage) if codepage
     @terminal.launch(command)
 
     case startup_message

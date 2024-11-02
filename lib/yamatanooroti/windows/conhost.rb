@@ -1,13 +1,13 @@
 class Yamatanooroti::ConhostTerm
   include Yamatanooroti::WindowsTermMixin
 
-  def self.setup_console(height, width, wait, timeout, name)
-    new(height, width, wait, timeout, name)
+  def self.setup_console(height, width, codepage, wait, timeout, name)
+    new(height, width, codepage, wait, timeout, name)
   end
 
   attr_reader :console_process_id
 
-  def initialize(height, width, wait, timeout, name)
+  def initialize(height, width, codepage, wait, timeout, name)
     check_interrupt
     @wait = wait
     @timeout = timeout
@@ -25,6 +25,8 @@ class Yamatanooroti::ConhostTerm
     with_timeout("Console process startup timed out.") do
       @console_process_id = DL.get_named_pipe_client_processid(@pipe_handle, maybe_fail: true)
     end
+
+    setup_cp(codepage) if codepage
 
     attach_terminal do |conin, conout|
       DL.set_console_window_size(conout, height, width)

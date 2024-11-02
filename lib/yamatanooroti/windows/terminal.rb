@@ -25,14 +25,19 @@ class Yamatanooroti::WindowsTerminalTerm
     attr_accessor :wt, :max_size, :min_size, :split_cache_h, :split_cache_v
   end
 
-  def self.setup_console(height, width, wait, timeout, name)
+  def self.setup_console(height, width, codepage, wait, timeout, name)
     if !Self.wt
       Self.wt = self.new(*max_size, wait, timeout, Self.window_title)
     end
 
     countup_testcase_title(name)
-    Self.wt.new_tab(height, width, name)
+    new_tab = Self.wt.new_tab(height, width, name)
+    new_tab.setup_cp(codepage) if codepage
     Self.wt
+  end
+
+  def codepage_success?
+    @wt.active_tab.codepage_success?
   end
 
   def console_process_id
