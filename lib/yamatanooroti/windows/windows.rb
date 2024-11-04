@@ -3,15 +3,16 @@ require 'stringio'
 module Yamatanooroti::WindowsTermMixin
   DL = Yamatanooroti::WindowsDefinition
 
-  CONSOLE_KEEPING_COMMANDLINE = %Q[cmd.exe /c start "" /B #{ENV["SystemRoot"]||"C:\\Windows"}\\System32\\more \\\\.\\pipe\\PIPENAME]
+  CONSOLE_KEEPING_COMMANDLINE_CONHOST = %Q[#{ENV["SystemRoot"]||"C:\\Windows"}\\System32\\more.com \\\\.\\pipe\\PIPENAME]
+  CONSOLE_KEEPING_COMMANDLINE_WT = %Q[cmd.exe /c start "" /B #{ENV["SystemRoot"]||"C:\\Windows"}\\System32\\more \\\\.\\pipe\\PIPENAME]
   CONSOLE_LEAVING_COMMANDLINE = %q[ruby.exe --disable=gems -e "Signal.trap(:INT, nil) or true and sleep"]
 
-  module_function def keeper_commandname
-    CONSOLE_KEEPING_COMMANDNAME
-  end
-
   module_function def keeper_commandline(pipename)
-    CONSOLE_KEEPING_COMMANDLINE.sub("PIPENAME", pipename)
+    if Yamatanooroti.options.conhost
+      CONSOLE_KEEPING_COMMANDLINE_CONHOST.sub("PIPENAME", pipename)
+    else
+      CONSOLE_KEEPING_COMMANDLINE_WT.sub("PIPENAME", pipename)
+    end
   end
 
   module_function def show_console_param
