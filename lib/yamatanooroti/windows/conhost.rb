@@ -35,7 +35,7 @@ class Yamatanooroti::ConhostTerm
 
   def close_console(need_to_close = true)
     if @console_process_id
-      if (need_to_close)
+      if need_to_close || DL.interrupted?
         if @target && !@target.closed?
           @target.close
         end

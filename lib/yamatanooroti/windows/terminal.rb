@@ -69,7 +69,7 @@ class Yamatanooroti::WindowsTerminalTerm
   end
 
   def close_console(need_to_close = true)
-    if need_to_close
+    if need_to_close || DL.interrupted?
       if @target && !@target.closed?
         @target.close
       end
