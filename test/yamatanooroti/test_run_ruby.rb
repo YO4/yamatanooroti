@@ -33,7 +33,7 @@ class Yamatanooroti::TestRunRuby < Yamatanooroti::TestCase
 
   def test_meta_key
     get_into_tmpdir
-    if !Yamatanooroti.win? || (RUBY_VERSION > '2.6.99' && RUBY_VERSION < '3.4.0')
+    if !Yamatanooroti.win? || (RUBY_VERSION >= '3' && RUBY_VERSION < '3.4.0')
       command = ['ruby', '-rreline', '-e', 'Reline.readline(%{>>>})']
     else
       command = ['bundle', 'exec', 'ruby', '-e', 'require "reline"; Reline.readline(%{>>>})']
