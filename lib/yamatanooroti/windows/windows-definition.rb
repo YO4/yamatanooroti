@@ -557,6 +557,7 @@ module Yamatanooroti::WindowsDefinition
 end
 
 if __FILE__ == $0
+  at_exit { Yamatanooroti::WindowsDefinition.at_exit }
   DL = Yamatanooroti::WindowsDefinition
   def invoke_key(conin, str)
     DL.write_console_input(conin, *DL.build_key_input_record(str))
