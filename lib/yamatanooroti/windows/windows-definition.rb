@@ -367,7 +367,7 @@ module Yamatanooroti::WindowsDefinition
     return console_process_info.dwProcessId
   end
 
-  def get_std_handle(stdhandle)
+  def get_std_handle(stdhandle, name)
     fh = GetStdHandle(stdhandle)
     successful_or_if_not_messageout(0, name) if fh == INVALID_HANDLE_VALUE
     fh
@@ -562,9 +562,9 @@ if __FILE__ == $0
   def invoke_key(conin, str)
     DL.write_console_input(conin, *DL.build_key_input_record(str))
   end
-  cin = DL.get_std_handle(DL::STD_INPUT_HANDLE)
-  cout = DL.get_std_handle(DL::STD_OUTPUT_HANDLE)
-  cerr = DL.get_std_handle(DL::STD_ERROR_HANDLE)
+  cin = DL.get_std_handle(DL::STD_INPUT_HANDLE, "STD_INPUT_HANDLE")
+  cout = DL.get_std_handle(DL::STD_OUTPUT_HANDLE, "STD_OUTPUT_HANDLE")
+  cerr = DL.get_std_handle(DL::STD_ERROR_HANDLE, "STD_ERROR_HANDLE")
 
   binding.irb
   [cin, cout, cerr]
