@@ -399,6 +399,8 @@ class Yamatanooroti
         @default_timeout = seconds
       end
 
+      return unless Yamatanooroti.win?
+
       o.on_tail("windows specific yamatanooroti options")
 
       o.on_tail("--[no-]show-console",
@@ -438,6 +440,7 @@ class Yamatanooroti
     def self.parse_require
       ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
         parse_common(autorunner, o)
+        next unless Yamatanooroti.win?
 
         o.on_tail("--windows=TYPE", CONHOST_TYPES + WT_TYPE,
                   "Specify console type",
@@ -464,6 +467,7 @@ class Yamatanooroti
     def self.parse_cli
       ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
         parse_common(autorunner, o)
+        next unless Yamatanooroti.win?
 
         o.on_tail("--windows=TYPE", CONHOST_TYPES + WT_TYPE + TERMINAL_TYPES,
                   "Specify console type",
