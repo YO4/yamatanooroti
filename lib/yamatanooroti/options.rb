@@ -248,7 +248,7 @@ class Yamatanooroti
       # detail: false -> the latest preview and the latest stable (with type),
       #   followed by all remaining versions (version only, no type).
       # detail: true  -> all releases (version and type only, no URL).
-      def self.list_releases(detail: false, force: false, cache_dir: cache_dir)
+      def self.list_releases(detail: false, force: false, cache_dir: nil)
         releases = fetch_releases(force: force)
         ordered = releases.sort_by { |r| parse_version(r["tag_name"]) }.reverse
         if detail
