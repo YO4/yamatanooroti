@@ -54,11 +54,27 @@ This is more important when running on Windows because of the type of console to
 
 Please see ```rake TESTOPTS="-h"```.
 
-You can also use the `yamatanooroti` executable, which is a wrapper that forwards its options to `rake test`:
+You can also use the `yamatanooroti` executable, which forwards its options to test-unit:
 
 ```sh
-exe/yamatanooroti --wait=0.2 --timeout=5
+yamatanooroti --wait=0.2 --timeout=5 test/yamatanooroti/test_run_ruby.rb
 ```
+
+#### Windows specific options
+
+These options are available only on Windows (shown by `yamatanooroti -h` on Windows). If no console type is specified, the classic console host (`conhost`) is used by default.
+
+- `--windows=TYPE` — Specify the console type to test:
+  - `conhost` / `legacy-conhost` — classic Windows console host.
+  - `wt` — Windows Terminal downloaded automatically (stable channel by default).
+  - `stable` / `preview` / `canary` — a specific Windows Terminal channel.
+  - `<version prefix>` (e.g. `1.22`) — the latest Windows Terminal release matching the prefix.
+- `--wt=PATH` — Use the system Windows Terminal executable at `PATH` instead of downloading one. (`wt.exe` on PATH is used if omitted.)
+- `--wt-dir=DIR` — Specify the Windows Terminal working directory. Downloaded files and the releases cache are kept permanently when set; otherwise a temporary directory is used.
+- `--list-wt-releases[=all]` — List downloadable Windows Terminal versions and exit without running tests. With `=all`, list every release; otherwise the latest preview/stable plus the latest per major.minor version.
+- `--refresh-wt-cache` — Force re-fetching the Windows Terminal releases list, bypassing the HTTP cache.
+- `--[no-]show-console` — Show or hide the console window while tests run. (Windows Terminal is always visible; `--no-show-console` is ignored for it.)
+- `--[no-]close-console[=COND]` — Control when the test target console is closed: `always` (default), `pass` (only on success), or `never`.
 
 ### Advanced Usage
 
