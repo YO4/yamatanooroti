@@ -16,7 +16,7 @@ Gem::Specification.new do |spec|
   spec.homepage      = 'https://github.com/aycabta/yamatanooroti'
   spec.license       = 'MIT'
 
-  spec.files         = Dir['LICENSE.txt', 'README.md', 'lib/**/*']
+  spec.files         = Dir['LICENSE.txt', 'README.md', 'lib/**/*', 'exe/**/*']
   spec.bindir        = 'exe'
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ['lib']

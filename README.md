@@ -54,6 +54,12 @@ This is more important when running on Windows because of the type of console to
 
 Please see ```rake TESTOPTS="-h"```.
 
+You can also use the `yamatanooroti` executable, which is a wrapper that forwards its options to `rake test`:
+
+```sh
+exe/yamatanooroti --wait=0.2 --timeout=5
+```
+
 ### Advanced Usage
 
 If you want to specify vterm environment that needs vterm gem, you can use `Yamatanooroti::VTermTestCase`:

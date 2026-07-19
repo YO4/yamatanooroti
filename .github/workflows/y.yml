@@ -78,4 +78,4 @@ jobs:
       - name: rake test
         run: |
           bundle install
-          bundle exec rake test TESTOPTS="-v --wt_dir=./tmp --windows=${{ matrix.console }}"
+          bundle exec exe/yamatanooroti -v --wt-dir=./tmp --windows=${{ matrix.console }}

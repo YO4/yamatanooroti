@@ -1,5 +1,7 @@
 require 'test/unit'
-require_relative 'yamatanooroti/options'
+if require_relative 'yamatanooroti/options'
+  Yamatanooroti::Options.parse_require
+end
 
 class Yamatanooroti
   def self.load_vterm

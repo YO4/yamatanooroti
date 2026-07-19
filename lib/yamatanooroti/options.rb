@@ -89,7 +89,7 @@ class Yamatanooroti
     TERMINAL_VERSIONS = WindowsTerminal::RELEASES.keys
     CLOSE_WHEN = [:always, :pass, :never]
 
-    ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
+    def self.parse_common(autorunner, o)
       @default_wait = 0.01
       @default_timeout = 2.0
       @windows = Yamatanooroti.win? ? :conhost : nil
@@ -149,6 +149,19 @@ class Yamatanooroti
         @close_console = (cond.nil? ? :always : cond) || :never
       end
     end
+
+    def self.parse_require
+      ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
+        parse_common(autorunner, o)
+      end
+    end
+
+    def self.parse_cli
+      ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
+        parse_common(autorunner, o)
+      end
+    end
+
   end
 
   def self.options
