@@ -1,6 +1,10 @@
 require 'yamatanooroti'
 require 'json'
 
+# tests intentionally redefine fetch_releases/capture2; silence the
+# method-redefined warning that rake's -w emits on re-stubbing.
+$VERBOSE = nil
+
 class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
   RELEASES_JSON = <<~JSON
     [
@@ -363,17 +367,16 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
       # cache merged all pages
       cached = JSON.parse(File.read(File.join(m.cache_dir, "wt_releases.json")))
       assert_equal(all_releases.size, cached.size)
-      ensure
-        if m.const_defined?(:PER_PAGE, false)
-          m.send(:remove_const, :PER_PAGE)
-          m.const_set(:PER_PAGE, @prev_per_page) if @prev_per_page
-        end
-        Open3.singleton_class.send(:define_method, :capture2, &open3) if open3
-        FileUtils.remove_entry(cache_dir)
-        Yamatanooroti::Options.instance_variable_set(:@terminal_workdir, nil)
+    ensure
+      if m.const_defined?(:PER_PAGE, false)
+        m.send(:remove_const, :PER_PAGE)
+        m.const_set(:PER_PAGE, @prev_per_page) if @prev_per_page
       end
+      Open3.singleton_class.send(:define_method, :capture2, &open3) if open3
+      FileUtils.remove_entry(cache_dir)
+      Yamatanooroti::Options.instance_variable_set(:@terminal_workdir, nil)
     end
-
+  end
 
 
 
