@@ -38,59 +38,111 @@ class Yamatanooroti
     end
 
     module WindowsTerminal
-      ALIAS = {
-        stable: :"1.21",
-        preview: :"1.22preview"
-      }
-      RELEASES = {
-        "1.22preview": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.22.2702.0/Microsoft.WindowsTerminalPreview_1.22.2702.0_x64.zip",
-          sha256: "CE8EED54D120775F31E3572A76EF5AE461B9E2D8887AB5DFF2F1859E24F4CE0B"
-        },
-        "1.21": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.21.2701.0/Microsoft.WindowsTerminal_1.21.2701.0_x64.zip",
-          sha256: "2F712872ED7F552763F3776EA7A823C9E7413CFD5EC65B88E95162E93ACEF899"
-        },
-        "1.21preview": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.21.1772.0/Microsoft.WindowsTerminalPreview_1.21.1772.0_x64.zip",
-          sha256: "6AA37175E2B09170829A39DAF3357D4B88A3965C3C529A45B1B0781B8F3425F0"
-        },
-        "1.20": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.20.11781.0/Microsoft.WindowsTerminal_1.20.11781.0_x64.zip",
-          sha256: "B7A6046903CE33D75250DA7E40AD2929E51703AB66E9C3A0B02A839C2E868FEC"
-        },
-        "1.19": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.19.11213.0/Microsoft.WindowsTerminal_1.19.11213.0_x64.zip",
-          sha256: "E32D7E72F8490AD94174708BB0B420E1EF4467B92F442D40DFAFDF42202A16A7"
-        },
-        "1.18": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.18.10301.0/Microsoft.WindowsTerminal_1.18.10301.0_x64.zip",
-          sha256: "38B0E38B545D9C61F1B4214EA3EC6117C0EC348FEB18476D04ECEFB4D7DA723D"
-        },
-        # v1.17 : the first windows terminal supports portable mode
-        "1.17": {
-          url: "https://github.com/microsoft/terminal/releases/download/v1.17.11461.0/Microsoft.WindowsTerminal_1.17.11461.0_x64.zip",
-          sha256: "F2B1539649D17752888D7944F97D6372F8D48EB1CEB024501DF8D8E9D3352F25"
-        },
-      }
+      RELEASES_API = "https://api.github.com/repos/microsoft/terminal/releases"
+      # resolved version -> { url:, sha256: }  (sha256 may be nil)
+      @resolved = {}
+      class << self
+        attr_reader :resolved
+      end
 
+      # fetch the releases JSON. overridable for testing.
+      def self.fetch_releases
+        require 'open3'
+        out, status = Open3.capture2("curl", "-sS", "-L", RELEASES_API)
+        raise "failed to fetch windows terminal releases: #{RELEASES_API}" unless status.success?
+        require 'json'
+        JSON.parse(out)
+      end
+
+      # parse "v1.25.1912.0" -> [1, 25, 1912, 0] for comparison
+      def self.parse_version(tag)
+        tag.to_s.sub(/\Av/, "").split(".").map(&:to_i)
+      rescue
+        []
+      end
+
+      # select the x64 zip asset for a release
+      def self.pick_asset(release)
+        release["assets"].find { |a| a["name"] =~ /Microsoft\.WindowsTerminal(Preview)?_.*_x64\.zip\z/ }
+      end
+
+      # resolve a release by version prefix (e.g. "1.22") taking the latest.
+      # spec: returns { version:, url:, sha256: } or nil when no match.
+      def self.resolve_by_prefix(prefix)
+        releases = fetch_releases
+        matched = releases.select do |r|
+          tag = r["tag_name"].to_s
+          tag.start_with?("v#{prefix}")
+        end
+        return nil if matched.empty?
+        release = matched.max_by { |r| parse_version(r["tag_name"]) }
+        asset = pick_asset(release)
+        return nil unless asset
+        version = release["tag_name"].to_s.sub(/\Av/, "")
+        sha256 = asset["digest"].to_s[/sha256:(\h+)/i, 1]
+        sha256 = sha256.upcase if sha256
+        {
+          version: version,
+          url: asset["browser_download_url"],
+          sha256: sha256,
+        }
+      end
+
+      # resolve the latest stable (non-prerelease) or preview (prerelease).
+      def self.resolve_latest(prerelease)
+        releases = fetch_releases
+        candidates = releases.select { |r| r["prerelease"] == prerelease }
+        return nil if candidates.empty?
+        release = candidates.max_by { |r| parse_version(r["tag_name"]) }
+        asset = pick_asset(release)
+        return nil unless asset
+        version = release["tag_name"].to_s.sub(/\Av/, "")
+        sha256 = asset["digest"].to_s[/sha256:(\h+)/i, 1]
+        sha256 = sha256.upcase if sha256
+        {
+          version: version,
+          url: asset["browser_download_url"],
+          sha256: sha256,
+        }
+      end
+
+      # resolve a windows terminal spec from the --windows= value.
+      # returns the resolved version string key, caching the spec.
       def self.interpret(name)
-        if ALIAS.has_key?(name)
-          name = ALIAS[name]
-        end
-        if RELEASES.has_key?(name)
-          return name.to_s
-        elsif name == :canary
+        case name
+        when :canary
           return name
+        when :stable
+          spec = resolve_latest(false)
+          raise "failed to resolve windows terminal stable release" unless spec
+          @resolved[spec[:version]] = spec
+          return spec[:version]
+        when :preview
+          spec = resolve_latest(true)
+          raise "failed to resolve windows terminal preview release" unless spec
+          @resolved[spec[:version]] = spec
+          return spec[:version]
+        else
+          key = name.to_s
+          if /\A\d+\.\d+(\.\d+)?\z/ =~ key
+            spec = resolve_by_prefix(key)
+            raise "no windows terminal release matches version prefix `#{key}'" unless spec
+            @resolved[spec[:version]] = spec
+            return spec[:version]
+          end
+          # exact resolved version key (e.g. re-entrant)
+          if @resolved.key?(key)
+            return key
+          end
+          raise "unknown windows terminal version: #{key}"
         end
-        raise "bug! #{name} is unknows"
       end
     end
 
     CONHOST_TYPES = [:conhost, :"legacy-conhost"]
     WT_TYPE = [:wt]
     TERMINAL_TYPES = [:stable, :preview, :canary]
-    TERMINAL_VERSIONS = WindowsTerminal::RELEASES.keys
+    TERMINAL_VERSION_RE = /\A\d+\.\d+(\.\d+)?\z/
     CLOSE_WHEN = [:always, :pass, :never]
 
     def self.parse_common(autorunner, o)
@@ -181,18 +233,20 @@ class Yamatanooroti
       ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
         parse_common(autorunner, o)
 
-        o.on_tail("--windows=TYPE", CONHOST_TYPES + WT_TYPE + TERMINAL_TYPES + TERMINAL_VERSIONS,
+        o.on_tail("--windows=TYPE", CONHOST_TYPES + WT_TYPE + TERMINAL_TYPES,
                   "Specify console type",
                   "(#{autorunner.keyword_display(CONHOST_TYPES + WT_TYPE + TERMINAL_TYPES)})",
-                  "(#{TERMINAL_VERSIONS.sort.join(", ")})") do |type|
+                  "(version prefix e.g. 1.22 resolves the latest matching release)") do |type|
           if CONHOST_TYPES.include?(type)
             @conhost = true
             @terminal = false
             @windows = type
           elsif WT_TYPE.include?(type)
             apply_windows_terminal(type)
-          else
+          elsif TERMINAL_TYPES.include?(type) || type.to_s =~ TERMINAL_VERSION_RE
             apply_windows_terminal(WindowsTerminal.interpret(type))
+          else
+            raise "unknown --windows type: #{type}"
           end
         end
 

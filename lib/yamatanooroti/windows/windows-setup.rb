@@ -231,14 +231,16 @@ module Yamatanooroti::WindowsConsoleSetup
   end
 
   def self.prepare_terminal_portable
-    releases = Yamatanooroti::Options::WindowsTerminal::RELEASES
-    url = releases[Yamatanooroti.options.windows.to_sym][:url]
-    sha256 = releases[Yamatanooroti.options.windows.to_sym][:sha256]
+    releases = Yamatanooroti::Options::WindowsTerminal.resolved
+    spec = releases[Yamatanooroti.options.windows.to_s]
+    raise "not resolved windows terminal version: #{Yamatanooroti.options.windows}" unless spec
+    url = spec[:url]
+    sha256 = spec[:sha256]
     dir = tmpdir
     name = File.basename(URI.parse(url).path)
     path = File.join(dir, "wt_dists", Yamatanooroti.options.windows, name)
     if File.exist?(path)
-      if Digest::SHA256.new.file(path).hexdigest.upcase == sha256
+      if !sha256 || Digest::SHA256.new.file(path).hexdigest.upcase == sha256
         puts "use existing #{path}"
         return path
       else
@@ -247,7 +249,9 @@ module Yamatanooroti::WindowsConsoleSetup
     end
     FileUtils.mkdir_p(File.dirname(path))
     system "curl #{$stdin.isatty ? "" : "-sS "}-L -o #{path} #{url}"
-    raise "not match windows terminal distribution zip sha256" unless Digest::SHA256.new.file(path).hexdigest.upcase == sha256
+    if sha256
+      raise "not match windows terminal distribution zip sha256" unless Digest::SHA256.new.file(path).hexdigest.upcase == sha256
+    end
     path
   end
 end
