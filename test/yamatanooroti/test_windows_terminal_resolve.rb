@@ -4,6 +4,7 @@ require 'json'
 # Windows Terminal release resolution is only meaningful on Windows;
 # do not even define the test class on non-Windows platforms.
 if Yamatanooroti.win?
+require_relative '../../lib/yamatanooroti/windows/windows-setup'
 # tests intentionally redefine fetch_releases/capture2; silence the
 # method-redefined warning that rake's -w emits on re-stubbing.
 $VERBOSE = nil
@@ -58,51 +59,51 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
   JSON
 
   def setup
-    @orig = Yamatanooroti::Options::WindowsTerminal.method(:fetch_releases)
-    Yamatanooroti::Options::WindowsTerminal.singleton_class.send(:define_method, :fetch_releases) do |**|
+    @orig = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.method(:fetch_releases)
+    Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.singleton_class.send(:define_method, :fetch_releases) do |**|
       JSON.parse(RELEASES_JSON)
     end
   end
 
   def teardown
-    Yamatanooroti::Options::WindowsTerminal.singleton_class.send(:define_method, :fetch_releases, &@orig)
+    Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.singleton_class.send(:define_method, :fetch_releases, &@orig)
   end
 
   def test_resolve_by_prefix_takes_latest
-    version = Yamatanooroti::Options::WindowsTerminal.interpret("1.25")
+    version = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.interpret("1.25")
     assert_equal("1.25.1912.0", version)
-    spec = Yamatanooroti::Options::WindowsTerminal.resolved[version]
+    spec = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.resolved[version]
     assert_equal("https://example.com/1.25.1912.0.zip", spec[:url])
     assert_equal("BBB", spec[:sha256])
   end
 
   def test_resolve_stable_takes_latest_non_prerelease
-    version = Yamatanooroti::Options::WindowsTerminal.interpret(:stable)
+    version = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.interpret(:stable)
     assert_equal("1.24.11911.0", version)
-    spec = Yamatanooroti::Options::WindowsTerminal.resolved[version]
+    spec = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.resolved[version]
     assert_equal("CCC", spec[:sha256])
   end
 
   def test_resolve_preview_takes_latest_prerelease
-    version = Yamatanooroti::Options::WindowsTerminal.interpret(:preview)
+    version = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.interpret(:preview)
     assert_equal("1.25.1912.0", version)
   end
 
   def test_resolve_missing_sha256_is_nil
-    version = Yamatanooroti::Options::WindowsTerminal.interpret("1.24.10921")
-    spec = Yamatanooroti::Options::WindowsTerminal.resolved[version]
+    version = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.interpret("1.24.10921")
+    spec = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.resolved[version]
     assert_equal("1.24.10921.0", version)
     assert_nil(spec[:sha256])
   end
 
   def test_resolve_unknown_prefix_raises
     assert_raise(RuntimeError) do
-      Yamatanooroti::Options::WindowsTerminal.interpret("9.99")
+      Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.interpret("9.99")
     end
   end
 
   def test_list_releases_summary
-    m = Yamatanooroti::Options::WindowsTerminal
+    m = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal
     releases = [
       { "tag_name" => "v1.25.3000.0", "prerelease" => true,
         "assets" => [{ "name" => "Microsoft.WindowsTerminalPreview_1.25.3000.0_x64.zip", "browser_download_url" => "u", "digest" => "sha256:A" }] },
@@ -136,7 +137,7 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
 
   def test_list_releases_detail
     out, _ = capture_stdout do
-      Yamatanooroti::Options::WindowsTerminal.list_releases(detail: true)
+      Yamatanooroti::WindowsConsoleSetup::WindowsTerminal.list_releases(detail: true)
     end
     lines = out.lines.map(&:chomp)
     # all four releases appear, version + kind only (no url)
@@ -152,7 +153,7 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
     require 'open3'
     require 'time'
     cache_dir = Dir.mktmpdir
-    m = Yamatanooroti::Options::WindowsTerminal
+    m = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal
     # restore the real fetch_releases (setup stubs it)
     m.singleton_class.send(:define_method, :fetch_releases, &@orig)
     begin
@@ -219,7 +220,7 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
     require 'open3'
     require 'time'
     cache_dir = Dir.mktmpdir
-    m = Yamatanooroti::Options::WindowsTerminal
+    m = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal
     m.singleton_class.send(:define_method, :fetch_releases, &@orig)
     begin
       Yamatanooroti::Options.instance_variable_set(:@terminal_workdir, cache_dir)
@@ -269,7 +270,7 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
     require 'open3'
     require 'time'
     cache_dir = Dir.mktmpdir
-    m = Yamatanooroti::Options::WindowsTerminal
+    m = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal
     m.singleton_class.send(:define_method, :fetch_releases, &@orig)
     begin
       Yamatanooroti::Options.instance_variable_set(:@terminal_workdir, cache_dir)
@@ -320,7 +321,7 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
     require 'open3'
     require 'time'
     cache_dir = Dir.mktmpdir
-    m = Yamatanooroti::Options::WindowsTerminal
+    m = Yamatanooroti::WindowsConsoleSetup::WindowsTerminal
     m.singleton_class.send(:define_method, :fetch_releases, &@orig)
     begin
       Yamatanooroti::Options.instance_variable_set(:@terminal_workdir, cache_dir)
