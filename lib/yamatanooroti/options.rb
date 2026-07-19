@@ -16,6 +16,9 @@ class Yamatanooroti
       # windows terminal download/extract dir
       :terminal_workdir,
 
+      # windows terminal executable path (--wt=PATH)
+      :wt,
+
       # show console window on windows
       :show_console,
 
@@ -85,6 +88,7 @@ class Yamatanooroti
     end
 
     CONHOST_TYPES = [:conhost, :"legacy-conhost"]
+    WT_TYPE = [:wt]
     TERMINAL_TYPES = [:stable, :preview, :canary]
     TERMINAL_VERSIONS = WindowsTerminal::RELEASES.keys
     CLOSE_WHEN = [:always, :pass, :never]
@@ -93,9 +97,10 @@ class Yamatanooroti
       @default_wait = 0.01
       @default_timeout = 2.0
       @windows = Yamatanooroti.win? ? :conhost : nil
-      @conhost = true
+      @conhost = false
       @terminal = false
       @terminal_workdir = nil
+      @wt = nil
       @show_console = nil
       @close_console = :always
 
@@ -111,28 +116,6 @@ class Yamatanooroti
       end
 
       o.on_tail("windows specific yamatanooroti options")
-
-      o.on_tail("--windows=TYPE", CONHOST_TYPES + TERMINAL_TYPES + TERMINAL_VERSIONS,
-                "Specify console type",
-                "(#{autorunner.keyword_display(CONHOST_TYPES + TERMINAL_TYPES)})",
-                "(#{TERMINAL_VERSIONS.sort.join(", ")})") do |type|
-        @conhost = CONHOST_TYPES.include?(type)
-        @terminal = !@conhost
-        @windows =  @conhost ? type : WindowsTerminal.interpret(type)
-        if @terminal
-          if @show_console == false
-            puts "Windows Terminal is always visible. --no-show-console is ignored."
-          end
-          @show_console = true
-        end
-      end
-
-      o.on_tail("--wt-dir=DIR", String,
-                "Specify Windows Terminal working dir.",
-                "Automatically determined if not specified and treated temporary.",
-                "DIR is treaded permanent if specified and download files are remains.") do |dir|
-        @terminal_workdir = dir
-      end
 
       o.on_tail("--[no-]show-console",
                 "Show test ongoing console.") do |show|
@@ -150,15 +133,75 @@ class Yamatanooroti
       end
     end
 
+    def self.apply_windows_terminal(type)
+      @conhost = false
+      @terminal = true
+      @windows = type
+      if @show_console == false
+        puts "Windows Terminal is always visible. --no-show-console is ignored."
+      end
+      @show_console = true
+    end
+
+    def self.resolve_default!
+      return unless Yamatanooroti.win?
+      unless @wt || @terminal || @conhost
+        @conhost = true
+        @windows = :conhost
+      end
+    end
+
     def self.parse_require
       ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
         parse_common(autorunner, o)
+
+        o.on_tail("--windows=TYPE", CONHOST_TYPES + WT_TYPE,
+                  "Specify console type",
+                  "(#{autorunner.keyword_display(CONHOST_TYPES + WT_TYPE)})") do |type|
+          if CONHOST_TYPES.include?(type)
+            raise "Specify either --wt or --windows=conhost, not both." if @wt
+            @conhost = true
+            @terminal = false
+            @windows = type
+          else
+            apply_windows_terminal(type)
+          end
+        end
+
+        o.on_tail("--wt=PATH", String,
+                  "Specify Windows Terminal executable path.",
+                  "wt.exe on PATH is used if not specified.") do |path|
+          raise "Specify either --wt or --windows=conhost, not both." if @conhost
+          @wt = path
+        end
       end
     end
 
     def self.parse_cli
       ::Test::Unit::AutoRunner.setup_option do |autorunner, o|
         parse_common(autorunner, o)
+
+        o.on_tail("--windows=TYPE", CONHOST_TYPES + WT_TYPE + TERMINAL_TYPES + TERMINAL_VERSIONS,
+                  "Specify console type",
+                  "(#{autorunner.keyword_display(CONHOST_TYPES + WT_TYPE + TERMINAL_TYPES)})",
+                  "(#{TERMINAL_VERSIONS.sort.join(", ")})") do |type|
+          if CONHOST_TYPES.include?(type)
+            @conhost = true
+            @terminal = false
+            @windows = type
+          elsif WT_TYPE.include?(type)
+            apply_windows_terminal(type)
+          else
+            apply_windows_terminal(WindowsTerminal.interpret(type))
+          end
+        end
+
+        o.on_tail("--wt-dir=DIR", String,
+                  "Specify Windows Terminal working dir.",
+                  "Automatically determined if not specified and treated temporary.",
+                  "DIR is treated permanent if specified and download files are remains.") do |dir|
+          @terminal_workdir = dir
+        end
       end
     end
 

@@ -39,6 +39,7 @@ module Yamatanooroti::WindowsConsoleSetup
   end
 
   Test::Unit.at_start do
+    Yamatanooroti::Options.resolve_default!
     case Yamatanooroti.options.windows
     when :conhost
       puts "use conhost(classic, conhostV2) for windows console"
@@ -60,6 +61,8 @@ module Yamatanooroti::WindowsConsoleSetup
       end if @orig_console && @orig_terminal
     when :canary
       @wt_exe = extract_terminal(prepare_terminal_canary)
+    when :wt
+      @wt_exe = prepare_terminal_wt
     else
       @wt_exe = extract_terminal(prepare_terminal_portable)
     end
@@ -176,6 +179,30 @@ module Yamatanooroti::WindowsConsoleSetup
       puts "use existing #{wt} for windows console"
     end
     wt
+  end
+
+  def self.prepare_terminal_wt
+    if Yamatanooroti.options.wt
+      wt = Yamatanooroti.options.wt
+      raise "not found #{wt}. aborted." unless File.exist?(wt)
+    else
+      wt = find_wt_on_path
+      raise "not found wt.exe on PATH. aborted." unless wt
+    end
+    puts "use #{wt} for windows console"
+    wt
+  end
+
+  def self.find_wt_on_path
+    require 'open3'
+    begin
+      path, status = Open3.capture2("where", "wt.exe")
+    rescue => e
+      abort "failed to search wt.exe on PATH: #{e.message}"
+    end
+    path&.strip!
+    return nil if path.to_s == "" || !status.success?
+    path.each_line.first.strip
   end
 
   def self.prepare_terminal_canary

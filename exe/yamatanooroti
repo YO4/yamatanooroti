@@ -7,14 +7,17 @@ require 'yamatanooroti/options'
 require 'yamatanooroti'
 Yamatanooroti::Options.parse_cli
 
-# Load the test files from the command line.
+explicit_tests = []
+
+# Collect explicit test files from the command line, leaving option arguments
+# for test-unit to parse.
 argv = ARGV.select do |argument|
   case argument
   when /^-/ then
     argument
   when /\*/ then
     Rake::FileList[argument].to_a.each do |file|
-      require File.expand_path file
+      explicit_tests << File.expand_path(file)
     end
 
     false
@@ -23,10 +26,19 @@ argv = ARGV.select do |argument|
 
     abort "\nFile does not exist: #{path}\n\n" unless File.exist?(path)
 
-    require path
+    explicit_tests << path
 
     false
   end
 end
 
-ARGV.replace argv
+tests = if explicit_tests.empty?
+          Dir["./test/yamatanooroti/test_*.rb"].map { |entry| File.expand_path entry }
+        else
+          explicit_tests
+        end
+
+Test::Unit::AutoRunner.run(true, nil, argv) do |runner|
+  runner.default_test_paths = []
+  runner.to_run = tests
+end
