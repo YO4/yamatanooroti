@@ -1,6 +1,9 @@
 require 'yamatanooroti'
 require 'json'
 
+# Windows Terminal release resolution is only meaningful on Windows;
+# do not even define the test class on non-Windows platforms.
+if Yamatanooroti.win?
 # tests intentionally redefine fetch_releases/capture2; silence the
 # method-redefined warning that rake's -w emits on re-stubbing.
 $VERBOSE = nil
@@ -391,4 +394,5 @@ class Yamatanooroti::TestWindowsTerminalResolve < Test::Unit::TestCase
   ensure
     $stdout = orig
   end
+end
 end
